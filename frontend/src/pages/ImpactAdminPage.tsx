@@ -1,0 +1,9 @@
+import { Save } from 'lucide-react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useState } from 'react'
+import { api, errorMessage } from '../api/client'
+import { Loading } from '../components/Loading'
+import type { ImpactMetric, Paginated } from '../types'
+
+function MetricRow({metric}:{metric:ImpactMetric}){const qc=useQueryClient();const [value,setValue]=useState(metric.value);const mutation=useMutation({mutationFn:()=>api.patch(`/impact-metrics/${metric.id}/`,{value}),onSuccess:()=>{void qc.invalidateQueries({queryKey:['impact-admin']});void qc.invalidateQueries({queryKey:['public-impact']})}});return <div className="metric-edit"><div><strong>{metric.label}</strong><small>{metric.description}</small></div><label><input type="number" step="0.01" value={value} onChange={e=>setValue(e.target.value)}/><span>{metric.unit}</span></label><button className="icon-button" onClick={()=>mutation.mutate()} aria-label={`Save ${metric.label}`}><Save size={18}/></button>{mutation.error&&<small className="error-text">{errorMessage(mutation.error)}</small>}</div>}
+export function ImpactAdminPage(){const {data,isLoading}=useQuery({queryKey:['impact-admin'],queryFn:async()=>(await api.get<Paginated<ImpactMetric>>('/impact-metrics/?page_size=100')).data});if(isLoading)return <Loading/>;return <div className="workspace narrow"><div className="page-head"><div><span className="eyebrow">Public evidence</span><h1>Impact metrics</h1><p>Update verified totals without changing code. Public pages read these values directly from the database.</p></div></div><section className="panel"><div className="alert alert-warning"><strong>Verification rule:</strong> update figures only from collection and recycler evidence. Keep calculation methods in the impact methodology document.</div><div className="metric-editor">{(data?.results??[]).map(m=><MetricRow key={m.id} metric={m}/>)}</div></section></div>}

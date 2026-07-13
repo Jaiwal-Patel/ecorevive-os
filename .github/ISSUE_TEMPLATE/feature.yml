@@ -1,0 +1,21 @@
+name: Feature
+description: Propose a user-facing or engineering feature
+body:
+  - type: textarea
+    attributes:
+      label: Problem
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Proposed outcome
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Acceptance criteria
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Privacy and security considerations

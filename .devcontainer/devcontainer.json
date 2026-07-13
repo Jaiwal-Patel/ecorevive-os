@@ -1,0 +1,25 @@
+{
+  "name": "EcoRevive OS",
+  "image": "mcr.microsoft.com/devcontainers/python:1-3.12-bookworm",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+    "ghcr.io/devcontainers/features/node:1": { "version": "22" }
+  },
+  "forwardPorts": [8000, 5173, 5432, 6379],
+  "portsAttributes": {
+    "8000": { "label": "EcoRevive API" },
+    "5173": { "label": "EcoRevive Web App" }
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "charliermarsh.ruff",
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "ms-azuretools.vscode-docker"
+      ]
+    }
+  },
+  "postCreateCommand": "cp -n .env.example .env || true && chmod +x scripts/*.sh"
+}

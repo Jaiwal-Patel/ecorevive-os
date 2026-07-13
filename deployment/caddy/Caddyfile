@@ -1,0 +1,31 @@
+{$ECOREVIVE_DOMAIN:localhost} {
+  encode zstd gzip
+
+  handle /api/* {
+    reverse_proxy backend:8000
+  }
+
+  handle /admin/* {
+    reverse_proxy backend:8000
+  }
+
+  handle /static/* {
+    reverse_proxy backend:8000
+  }
+
+  handle_path /media/* {
+    root * /srv/media
+    file_server
+  }
+
+  handle {
+    reverse_proxy frontend:80
+  }
+
+  header {
+    X-Content-Type-Options nosniff
+    X-Frame-Options DENY
+    Referrer-Policy strict-origin-when-cross-origin
+    Permissions-Policy "camera=(), microphone=(), geolocation=(self)"
+  }
+}
