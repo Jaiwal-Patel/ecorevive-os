@@ -1,14 +1,30 @@
 {
   "name": "EcoRevive OS",
-  "image": "mcr.microsoft.com/devcontainers/python:1-3.12-bookworm",
+  "image": "mcr.microsoft.com/devcontainers/python:3-3.12-bookworm",
   "features": {
-    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
-    "ghcr.io/devcontainers/features/node:1": { "version": "22" }
+    "ghcr.io/devcontainers/features/node:2": {
+      "version": "22"
+    },
+    "ghcr.io/devcontainers/features/docker-in-docker:4.0.0": {
+      "version": "latest",
+      "moby": true,
+      "dockerDashComposeVersion": "v2",
+      "installDockerBuildx": true
+    }
   },
-  "forwardPorts": [8000, 5173, 5432, 6379],
+  "forwardPorts": [
+    8000,
+    5173
+  ],
   "portsAttributes": {
-    "8000": { "label": "EcoRevive API" },
-    "5173": { "label": "EcoRevive Web App" }
+    "8000": {
+      "label": "EcoRevive API",
+      "onAutoForward": "notify"
+    },
+    "5173": {
+      "label": "EcoRevive Web App",
+      "onAutoForward": "openBrowser"
+    }
   },
   "customizations": {
     "vscode": {
@@ -17,9 +33,9 @@
         "charliermarsh.ruff",
         "dbaeumer.vscode-eslint",
         "esbenp.prettier-vscode",
-        "ms-azuretools.vscode-docker"
+        "ms-azuretools.vscode-containers"
       ]
     }
   },
-  "postCreateCommand": "cp -n .env.example .env || true && chmod +x scripts/*.sh"
+  "postCreateCommand": "cp -n .env.example .env 2>/dev/null || true; chmod +x scripts/*.sh"
 }
