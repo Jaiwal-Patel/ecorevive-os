@@ -25,6 +25,7 @@ services:
       retries: 15
 
   backend:
+    image: ecorevive-backend:dev
     build:
       context: ./backend
     env_file: .env
@@ -44,8 +45,7 @@ services:
         condition: service_healthy
 
   worker:
-    build:
-      context: ./backend
+    image: ecorevive-backend:dev
     env_file: .env
     environment:
       POSTGRES_HOST: db
@@ -63,6 +63,7 @@ services:
         condition: service_started
 
   frontend:
+    image: ecorevive-frontend:dev
     build:
       context: ./frontend
       target: development
