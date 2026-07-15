@@ -1,20 +1,66 @@
 from django.contrib.auth.password_validation import validate_password
+from django.db import transaction
 from rest_framework import serializers
 
 from audit.services import record_event
+from operations.models import VolunteerProfile
 
 from .models import PROTECTED_GOVERNANCE_ROLES, User, UserRole
 
 
 class RegisterSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(write_only=True, validators=[validate_password])
+    password = serializers.CharField(
+        write_only=True,
+        validators=[validate_password],
+    )
+
+    account_type = serializers.ChoiceField(
+        choices=[
+            (UserRole.RESIDENT, "Resident"),
+            (UserRole.VOLUNTEER, "Volunteer"),
+        ],
+        write_only=True,
+        default=UserRole.RESIDENT,
+    )
 
     class Meta:
         model = User
-        fields = ["email", "full_name", "phone_number", "password"]
+        fields = [
+            "email",
+            "full_name",
+            "phone_number",
+            "password",
+            "account_type",
+        ]
 
+    @transaction.atomic
     def create(self, validated_data):
-        return User.objects.create_user(**validated_data, role=UserRole.RESIDENT)
+        account_type = validated_data.pop(
+            "account_type",
+            UserRole.RESIDENT,
+        )
+
+        user = User.objects.create_user(
+            **validated_data,
+            role=account_type,
+        )
+
+        if account_type == UserRole.VOLUNTEER:
+            VolunteerProfile.objects.create(
+                user=user,
+                active=False,
+                safety_acknowledged=False,
+            )
+
+            record_event(
+                actor=user,
+                event_type="volunteer.registration_submitted",
+                summary=f"Volunteer registration submitted by {user.email}",
+                object_type="User",
+                object_id=user.id,
+            )
+
+        return user
 
 
 class MeSerializer(serializers.ModelSerializer):
@@ -130,6 +176,7 @@ class GovernanceIdentitySerializer(serializers.ModelSerializer):
             "is_active", "date_joined", "updated_at",
         ]
         read_only_fields = fields
+
 
 class ChangePasswordSerializer(serializers.Serializer):
     current_password = serializers.CharField(write_only=True)
