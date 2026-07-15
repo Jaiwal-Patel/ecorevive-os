@@ -30,8 +30,10 @@ jobs:
       run:
         working-directory: backend
     env:
+      env:
       DJANGO_SECRET_KEY: ci-only-secret
       DJANGO_DEBUG: "false"
+      DJANGO_SECURE_SSL_REDIRECT: "false"
       POSTGRES_DB: ecorevive_test
       POSTGRES_USER: ecorevive
       POSTGRES_PASSWORD: test-password
