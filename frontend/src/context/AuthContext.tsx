@@ -1,12 +1,27 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  type ReactNode,
+} from 'react'
+
 import { api } from '../api/client'
 import type { User } from '../types'
+
+interface RegisterPayload {
+  email: string
+  full_name: string
+  phone_number: string
+  password: string
+  account_type: 'resident' | 'volunteer'
+}
 
 interface AuthContextValue {
   user: User | null
   loading: boolean
   login: (email: string, password: string) => Promise<void>
-  register: (payload: { email: string; full_name: string; phone_number: string; password: string }) => Promise<void>
+  register: (payload: RegisterPayload) => Promise<void>
   logout: () => void
   refreshUser: () => Promise<void>
 }
@@ -19,11 +34,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const refreshUser = async () => {
     const token = localStorage.getItem('ecorevive_access')
+
     if (!token) {
       setUser(null)
       setLoading(false)
       return
     }
+
     try {
       const { data } = await api.get<User>('/auth/me/')
       setUser(data)
@@ -43,13 +60,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const login = async (email: string, password: string) => {
-    const { data } = await api.post<{ access: string; refresh: string }>('/auth/token/', { email, password })
+    const { data } = await api.post<{
+      access: string
+      refresh: string
+    }>('/auth/token/', {
+      email,
+      password,
+    })
+
     localStorage.setItem('ecorevive_access', data.access)
     localStorage.setItem('ecorevive_refresh', data.refresh)
+
     await refreshUser()
   }
 
-  const register = async (payload: { email: string; full_name: string; phone_number: string; password: string }) => {
+  const register = async (payload: RegisterPayload) => {
     await api.post('/auth/register/', payload)
     await login(payload.email, payload.password)
   }
@@ -61,7 +86,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout, refreshUser }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        loading,
+        login,
+        register,
+        logout,
+        refreshUser,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   )
@@ -69,6 +103,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 export function useAuth() {
   const context = useContext(AuthContext)
-  if (!context) throw new Error('useAuth must be used inside AuthProvider')
+
+  if (!context) {
+    throw new Error('useAuth must be used inside AuthProvider')
+  }
+
   return context
 }
