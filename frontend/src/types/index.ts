@@ -7,6 +7,11 @@ export type UserRole =
   | 'corporate_coordinator'
   | 'resident'
 
+export type VolunteerApprovalStatus =
+  | 'pending'
+  | 'approved'
+  | 'rejected'
+
 export interface User {
   id: string
   email: string
@@ -139,13 +144,28 @@ export interface VolunteerProfile {
   user: string
   user_email: string
   user_name: string
+
+  approval_status: VolunteerApprovalStatus
+  approval_status_label: string
+
+  reviewed_by: string | null
+  reviewed_by_name: string | null
+  reviewed_at: string | null
+  review_note: string
+
   service_areas: string
   has_vehicle: boolean
   vehicle_description: string
   capacity_kg: string
   availability_notes: string
+
   active: boolean
   safety_acknowledged: boolean
+  is_approved: boolean
+  can_receive_assignments: boolean
+
+  created_at: string
+  updated_at: string
 }
 
 export interface Organization {
@@ -173,6 +193,12 @@ export interface PickupAssignment {
   created_at: string
 }
 
+export interface HandoverRequestSummary {
+  request: string
+  request_reference: string
+  verified_weight_kg: string
+}
+
 export interface HandoverBatch {
   id: string
   reference: string
@@ -180,7 +206,7 @@ export interface HandoverBatch {
   handover_date: string
   receipt_number: string
   total_weight_kg: string
-  included_requests: Array<{request:string;request_reference:string;verified_weight_kg:string}>
+  included_requests: HandoverRequestSummary[]
   recorded_by: string
   created_at: string
 }

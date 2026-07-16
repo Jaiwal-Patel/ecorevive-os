@@ -24,24 +24,56 @@ class RequestStatus(models.TextChoices):
 
 
 ALLOWED_TRANSITIONS = {
-    RequestStatus.DRAFT: {RequestStatus.SUBMITTED, RequestStatus.CANCELLED},
-    RequestStatus.SUBMITTED: {RequestStatus.UNDER_REVIEW, RequestStatus.CANCELLED},
-    RequestStatus.UNDER_REVIEW: {RequestStatus.APPROVED, RequestStatus.CANCELLED},
-    RequestStatus.APPROVED: {RequestStatus.SCHEDULED, RequestStatus.CANCELLED},
-    RequestStatus.SCHEDULED: {RequestStatus.ASSIGNED, RequestStatus.CANCELLED},
-    RequestStatus.ASSIGNED: {RequestStatus.COLLECTED, RequestStatus.CANCELLED},
-    RequestStatus.COLLECTED: {RequestStatus.HANDED_TO_RECYCLER},
-    RequestStatus.HANDED_TO_RECYCLER: {RequestStatus.COMPLETED},
+    RequestStatus.DRAFT: {
+        RequestStatus.SUBMITTED,
+        RequestStatus.CANCELLED,
+    },
+    RequestStatus.SUBMITTED: {
+        RequestStatus.UNDER_REVIEW,
+        RequestStatus.CANCELLED,
+    },
+    RequestStatus.UNDER_REVIEW: {
+        RequestStatus.APPROVED,
+        RequestStatus.CANCELLED,
+    },
+    RequestStatus.APPROVED: {
+        RequestStatus.SCHEDULED,
+        RequestStatus.CANCELLED,
+    },
+    RequestStatus.SCHEDULED: {
+        RequestStatus.ASSIGNED,
+        RequestStatus.CANCELLED,
+    },
+    RequestStatus.ASSIGNED: {
+        RequestStatus.COLLECTED,
+        RequestStatus.CANCELLED,
+    },
+    RequestStatus.COLLECTED: {
+        RequestStatus.HANDED_TO_RECYCLER,
+    },
+    RequestStatus.HANDED_TO_RECYCLER: {
+        RequestStatus.COMPLETED,
+    },
     RequestStatus.COMPLETED: set(),
     RequestStatus.CANCELLED: set(),
 }
 
 
 class ItemCategory(UUIDTimeStampedModel):
-    name = models.CharField(max_length=120, unique=True)
-    slug = models.SlugField(max_length=140, unique=True)
-    description = models.TextField(blank=True)
-    active = models.BooleanField(default=True)
+    name = models.CharField(
+        max_length=120,
+        unique=True,
+    )
+    slug = models.SlugField(
+        max_length=140,
+        unique=True,
+    )
+    description = models.TextField(
+        blank=True,
+    )
+    active = models.BooleanField(
+        default=True,
+    )
 
     class Meta:
         ordering = ["name"]
@@ -49,7 +81,11 @@ class ItemCategory(UUIDTimeStampedModel):
 
 
 class CollectionRequest(UUIDTimeStampedModel):
-    public_reference = models.CharField(max_length=24, unique=True, editable=False)
+    public_reference = models.CharField(
+        max_length=24,
+        unique=True,
+        editable=False,
+    )
     requester = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.PROTECT,
@@ -69,14 +105,39 @@ class CollectionRequest(UUIDTimeStampedModel):
         db_index=True,
     )
     address_line = models.TextField()
-    area = models.CharField(max_length=120)
-    city = models.CharField(max_length=80, default="Dubai")
-    latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
-    longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
-    preferred_date = models.DateField(null=True, blank=True)
-    preferred_time_window = models.CharField(max_length=120, blank=True)
-    access_instructions = models.TextField(blank=True)
-    resident_notes = models.TextField(blank=True)
+    area = models.CharField(
+        max_length=120,
+    )
+    city = models.CharField(
+        max_length=80,
+        default="Dubai",
+    )
+    latitude = models.DecimalField(
+        max_digits=9,
+        decimal_places=6,
+        null=True,
+        blank=True,
+    )
+    longitude = models.DecimalField(
+        max_digits=9,
+        decimal_places=6,
+        null=True,
+        blank=True,
+    )
+    preferred_date = models.DateField(
+        null=True,
+        blank=True,
+    )
+    preferred_time_window = models.CharField(
+        max_length=120,
+        blank=True,
+    )
+    access_instructions = models.TextField(
+        blank=True,
+    )
+    resident_notes = models.TextField(
+        blank=True,
+    )
     estimated_weight_kg = models.DecimalField(
         max_digits=10,
         decimal_places=2,
@@ -91,30 +152,62 @@ class CollectionRequest(UUIDTimeStampedModel):
         blank=True,
         validators=[MinValueValidator(Decimal("0"))],
     )
-    consent_to_contact = models.BooleanField(default=False)
-    consent_to_data_processing = models.BooleanField(default=False)
-    submitted_at = models.DateTimeField(null=True, blank=True)
-    completed_at = models.DateTimeField(null=True, blank=True)
+    consent_to_contact = models.BooleanField(
+        default=False,
+    )
+    consent_to_data_processing = models.BooleanField(
+        default=False,
+    )
+    submitted_at = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
+    completed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
 
     class Meta:
         ordering = ["-created_at"]
-        indexes = [models.Index(fields=["status", "preferred_date"])]
+        indexes = [
+            models.Index(
+                fields=["status", "preferred_date"],
+            )
+        ]
 
     def save(self, *args, **kwargs):
         if not self.public_reference:
-            suffix = "".join(random.choices(string.ascii_uppercase + string.digits, k=6))
+            suffix = "".join(
+                random.choices(
+                    string.ascii_uppercase + string.digits,
+                    k=6,
+                )
+            )
             self.public_reference = f"ER-{suffix}"
+
         super().save(*args, **kwargs)
 
 
 class CollectionItem(UUIDTimeStampedModel):
     request = models.ForeignKey(
-        CollectionRequest, on_delete=models.CASCADE, related_name="items"
+        CollectionRequest,
+        on_delete=models.CASCADE,
+        related_name="items",
     )
-    category = models.ForeignKey(ItemCategory, on_delete=models.PROTECT)
-    description = models.CharField(max_length=255)
-    quantity = models.PositiveIntegerField(default=1)
-    condition = models.CharField(max_length=120, blank=True)
+    category = models.ForeignKey(
+        ItemCategory,
+        on_delete=models.PROTECT,
+    )
+    description = models.CharField(
+        max_length=255,
+    )
+    quantity = models.PositiveIntegerField(
+        default=1,
+    )
+    condition = models.CharField(
+        max_length=120,
+        blank=True,
+    )
     approximate_weight_kg = models.DecimalField(
         max_digits=8,
         decimal_places=2,
@@ -122,7 +215,17 @@ class CollectionItem(UUIDTimeStampedModel):
         blank=True,
         validators=[MinValueValidator(Decimal("0"))],
     )
-    photo = models.ImageField(upload_to="collection-items/%Y/%m/", null=True, blank=True)
+    photo = models.ImageField(
+        upload_to="collection-items/%Y/%m/",
+        null=True,
+        blank=True,
+    )
+
+
+class VolunteerApprovalStatus(models.TextChoices):
+    PENDING = "pending", "Pending review"
+    APPROVED = "approved", "Approved"
+    REJECTED = "rejected", "Rejected"
 
 
 class VolunteerProfile(UUIDTimeStampedModel):
@@ -131,18 +234,70 @@ class VolunteerProfile(UUIDTimeStampedModel):
         on_delete=models.CASCADE,
         related_name="volunteer_profile",
     )
-    service_areas = models.CharField(max_length=255, blank=True)
-    has_vehicle = models.BooleanField(default=False)
-    vehicle_description = models.CharField(max_length=160, blank=True)
+    approval_status = models.CharField(
+        max_length=20,
+        choices=VolunteerApprovalStatus.choices,
+        default=VolunteerApprovalStatus.PENDING,
+        db_index=True,
+    )
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="volunteer_profiles_reviewed",
+    )
+    reviewed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
+    review_note = models.TextField(
+        blank=True,
+    )
+    service_areas = models.CharField(
+        max_length=255,
+        blank=True,
+    )
+    has_vehicle = models.BooleanField(
+        default=False,
+    )
+    vehicle_description = models.CharField(
+        max_length=160,
+        blank=True,
+    )
     capacity_kg = models.DecimalField(
         max_digits=8,
         decimal_places=2,
         default=0,
         validators=[MinValueValidator(Decimal("0"))],
     )
-    availability_notes = models.TextField(blank=True)
-    active = models.BooleanField(default=True)
-    safety_acknowledged = models.BooleanField(default=False)
+    availability_notes = models.TextField(
+        blank=True,
+    )
+    active = models.BooleanField(
+        default=False,
+    )
+    safety_acknowledged = models.BooleanField(
+        default=False,
+    )
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    @property
+    def is_approved(self):
+        return (
+            self.approval_status
+            == VolunteerApprovalStatus.APPROVED
+        )
+
+    @property
+    def can_receive_assignments(self):
+        return (
+            self.is_approved
+            and self.active
+            and self.safety_acknowledged
+        )
 
 
 class AssignmentStatus(models.TextChoices):
@@ -175,7 +330,9 @@ class PickupAssignment(UUIDTimeStampedModel):
         choices=AssignmentStatus.choices,
         default=AssignmentStatus.PROPOSED,
     )
-    instructions = models.TextField(blank=True)
+    instructions = models.TextField(
+        blank=True,
+    )
 
     class Meta:
         ordering = ["scheduled_for"]
@@ -187,29 +344,54 @@ class StatusTransition(UUIDTimeStampedModel):
         on_delete=models.CASCADE,
         related_name="status_history",
     )
-    from_status = models.CharField(max_length=30, choices=RequestStatus.choices)
-    to_status = models.CharField(max_length=30, choices=RequestStatus.choices)
-    actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
-    note = models.TextField(blank=True)
+    from_status = models.CharField(
+        max_length=30,
+        choices=RequestStatus.choices,
+    )
+    to_status = models.CharField(
+        max_length=30,
+        choices=RequestStatus.choices,
+    )
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+    )
+    note = models.TextField(
+        blank=True,
+    )
 
     class Meta:
         ordering = ["created_at"]
 
 
 class HandoverBatch(UUIDTimeStampedModel):
-    reference = models.CharField(max_length=60, unique=True)
-    recycler_name = models.CharField(max_length=160, default="Enviroserve UAE")
+    reference = models.CharField(
+        max_length=60,
+        unique=True,
+    )
+    recycler_name = models.CharField(
+        max_length=160,
+        default="Enviroserve UAE",
+    )
     handover_date = models.DateField()
-    receipt_number = models.CharField(max_length=120, blank=True)
+    receipt_number = models.CharField(
+        max_length=120,
+        blank=True,
+    )
     total_weight_kg = models.DecimalField(
         max_digits=12,
         decimal_places=2,
         validators=[MinValueValidator(Decimal("0"))],
     )
     receipt_document = models.FileField(
-        upload_to="handover-receipts/%Y/%m/", null=True, blank=True
+        upload_to="handover-receipts/%Y/%m/",
+        null=True,
+        blank=True,
     )
-    requests = models.ManyToManyField(CollectionRequest, through="HandoverRequest")
+    requests = models.ManyToManyField(
+        CollectionRequest,
+        through="HandoverRequest",
+    )
     recorded_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.PROTECT,
@@ -221,8 +403,14 @@ class HandoverBatch(UUIDTimeStampedModel):
 
 
 class HandoverRequest(UUIDTimeStampedModel):
-    batch = models.ForeignKey(HandoverBatch, on_delete=models.CASCADE)
-    request = models.OneToOneField(CollectionRequest, on_delete=models.PROTECT)
+    batch = models.ForeignKey(
+        HandoverBatch,
+        on_delete=models.CASCADE,
+    )
+    request = models.OneToOneField(
+        CollectionRequest,
+        on_delete=models.PROTECT,
+    )
     verified_weight_kg = models.DecimalField(
         max_digits=10,
         decimal_places=2,
