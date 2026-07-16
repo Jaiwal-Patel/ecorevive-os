@@ -17,6 +17,7 @@ from audit.services import record_event
 from common.permissions import IsOperationalAdmin
 
 from .models import (
+    AssignmentStatus,
     CollectionRequest,
     HandoverBatch,
     ItemCategory,
@@ -368,6 +369,127 @@ class PickupAssignmentViewSet(viewsets.ModelViewSet):
                     f"{assignment.volunteer.user.full_name}"
                 ),
             )
+
+        record_event(
+            actor=self.request.user,
+            event_type="pickup.assignment_created",
+            summary=(
+                f"Assigned {request_obj.public_reference} to "
+                f"{assignment.volunteer.user.full_name}"
+            ),
+            object_type="PickupAssignment",
+            object_id=assignment.id,
+            metadata={
+                "request_id": str(request_obj.id),
+                "request_reference": request_obj.public_reference,
+                "volunteer_id": str(assignment.volunteer_id),
+                "volunteer_name": (
+                    assignment.volunteer.user.full_name
+                ),
+                "scheduled_for": (
+                    assignment.scheduled_for.isoformat()
+                ),
+                "status": assignment.status,
+                "instructions": assignment.instructions,
+            },
+        )
+
+    @transaction.atomic
+    def perform_update(self, serializer):
+        assignment = serializer.instance
+
+        previous_volunteer_id = assignment.volunteer_id
+        previous_volunteer_name = (
+            assignment.volunteer.user.full_name
+        )
+        previous_scheduled_for = assignment.scheduled_for
+        previous_status = assignment.status
+        previous_instructions = assignment.instructions
+
+        updated_assignment = serializer.save()
+
+        changed_fields = {}
+
+        if (
+            previous_volunteer_id
+            != updated_assignment.volunteer_id
+        ):
+            changed_fields["volunteer"] = {
+                "from_id": str(previous_volunteer_id),
+                "from_name": previous_volunteer_name,
+                "to_id": str(
+                    updated_assignment.volunteer_id,
+                ),
+                "to_name": (
+                    updated_assignment.volunteer.user.full_name
+                ),
+            }
+
+        if (
+            previous_scheduled_for
+            != updated_assignment.scheduled_for
+        ):
+            changed_fields["scheduled_for"] = {
+                "from": previous_scheduled_for.isoformat(),
+                "to": (
+                    updated_assignment.scheduled_for.isoformat()
+                ),
+            }
+
+        if previous_status != updated_assignment.status:
+            changed_fields["status"] = {
+                "from": previous_status,
+                "to": updated_assignment.status,
+            }
+
+        if (
+            previous_instructions
+            != updated_assignment.instructions
+        ):
+            changed_fields["instructions"] = {
+                "from": previous_instructions,
+                "to": updated_assignment.instructions,
+            }
+
+        if changed_fields:
+            record_event(
+                actor=self.request.user,
+                event_type="pickup.assignment_updated",
+                summary=(
+                    "Updated pickup assignment for "
+                    f"{updated_assignment.request.public_reference}"
+                ),
+                object_type="PickupAssignment",
+                object_id=updated_assignment.id,
+                metadata={
+                    "request_id": str(
+                        updated_assignment.request_id,
+                    ),
+                    "request_reference": (
+                        updated_assignment.request.public_reference
+                    ),
+                    "changes": changed_fields,
+                },
+            )
+
+        if (
+            updated_assignment.status
+            == AssignmentStatus.COMPLETED
+            and previous_status
+            != AssignmentStatus.COMPLETED
+        ):
+            request_obj = updated_assignment.request
+
+            if request_obj.status == RequestStatus.ASSIGNED:
+                transition_request(
+                    request_obj=request_obj,
+                    to_status=RequestStatus.COLLECTED,
+                    actor=self.request.user,
+                    note=(
+                        "Pickup completed by "
+                        f"{updated_assignment.volunteer.user.full_name}"
+                    ),
+                )
 
 
 class HandoverBatchViewSet(viewsets.ModelViewSet):
