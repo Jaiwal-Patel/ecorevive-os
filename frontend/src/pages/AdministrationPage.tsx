@@ -1,9 +1,12 @@
 import {
+  AlertTriangle,
   Building2,
   CheckCircle2,
   Clock3,
   Plus,
+  Power,
   ShieldCheck,
+  Trash2,
   UserPlus,
   Users,
   XCircle,
@@ -40,11 +43,21 @@ const roleLabels: Record<UserRole, string> = {
   resident: 'Resident',
 }
 
-const approvalLabels: Record<VolunteerApprovalStatus, string> = {
+const approvalLabels: Record<
+  VolunteerApprovalStatus,
+  string
+> = {
   pending: 'Pending review',
   approved: 'Approved',
   rejected: 'Rejected',
 }
+
+const protectedAccountRoles = new Set<UserRole>([
+  'founder_guardian',
+  'founder_recovery',
+  'principal_admin',
+  'operations_admin',
+])
 
 type AdministrationSection =
   | 'people'
@@ -59,6 +72,16 @@ interface VolunteerReviewPayload {
   id: string
   decision: VolunteerReviewDecision
   review_note: string
+}
+
+interface UserStatusPayload {
+  id: string
+  isActive: boolean
+}
+
+interface PurgeUserPayload {
+  id: string
+  confirmationEmail: string
 }
 
 function getResults<T>(
@@ -105,7 +128,8 @@ export function AdministrationPage() {
     queryFn: async () =>
       (
         await api.get<
-          Paginated<VolunteerProfile> | VolunteerProfile[]
+          | Paginated<VolunteerProfile>
+          | VolunteerProfile[]
         >('/volunteer-profiles/?page_size=100')
       ).data,
   })
@@ -115,8 +139,11 @@ export function AdministrationPage() {
     queryFn: async () =>
       (
         await api.get<
-          Paginated<VolunteerProfile> | VolunteerProfile[]
-        >('/volunteer-profiles/pending/?page_size=100')
+          | Paginated<VolunteerProfile>
+          | VolunteerProfile[]
+        >(
+          '/volunteer-profiles/pending/?page_size=100',
+        )
       ).data,
   })
 
@@ -138,7 +165,8 @@ export function AdministrationPage() {
     password: '',
   })
 
-  const [userError, setUserError] = useState('')
+  const [userError, setUserError] =
+    useState('')
 
   const createUser = useMutation({
     mutationFn: () =>
@@ -154,6 +182,7 @@ export function AdministrationPage() {
         role: 'resident',
         password: '',
       })
+
       setUserError('')
 
       void queryClient.invalidateQueries({
@@ -167,19 +196,104 @@ export function AdministrationPage() {
     },
   })
 
-  const [newVolunteer, setNewVolunteer] = useState({
-    user: '',
-    service_areas: 'Dubai',
-    has_vehicle: false,
-    vehicle_description: '',
-    capacity_kg: '0',
-    availability_notes: '',
-    active: false,
-    safety_acknowledged: false,
+  const [
+    accountActionError,
+    setAccountActionError,
+  ] = useState('')
+
+  const [purgeTarget, setPurgeTarget] =
+    useState<AdminUser | null>(null)
+
+  const [
+    purgeConfirmation,
+    setPurgeConfirmation,
+  ] = useState('')
+
+  const toggleUserStatus = useMutation({
+    mutationFn: ({
+      id,
+      isActive,
+    }: UserStatusPayload) =>
+      api.patch(
+        `/users/${id}/`,
+        {
+          is_active: isActive,
+        },
+      ),
+    onSuccess: () => {
+      setAccountActionError('')
+
+      void queryClient.invalidateQueries({
+        queryKey: ['admin-users'],
+      })
+    },
+    onError: (error) => {
+      setAccountActionError(
+        errorMessage(error),
+      )
+    },
   })
 
-  const [volunteerError, setVolunteerError] =
-    useState('')
+  const purgeUser = useMutation({
+    mutationFn: ({
+      id,
+      confirmationEmail,
+    }: PurgeUserPayload) =>
+      api.post(
+        `/users/${id}/purge-test-account/`,
+        {
+          confirmation_email:
+            confirmationEmail,
+        },
+      ),
+    onSuccess: () => {
+      setAccountActionError('')
+      setPurgeTarget(null)
+      setPurgeConfirmation('')
+
+      void queryClient.invalidateQueries({
+        queryKey: ['admin-users'],
+      })
+
+      void queryClient.invalidateQueries({
+        queryKey: ['volunteers'],
+      })
+
+      void queryClient.invalidateQueries({
+        queryKey: ['pending-volunteers'],
+      })
+
+      void queryClient.invalidateQueries({
+        queryKey: ['pickup-assignments'],
+      })
+
+      void queryClient.invalidateQueries({
+        queryKey: ['collection-requests'],
+      })
+    },
+    onError: (error) => {
+      setAccountActionError(
+        errorMessage(error),
+      )
+    },
+  })
+
+  const [newVolunteer, setNewVolunteer] =
+    useState({
+      user: '',
+      service_areas: 'Dubai',
+      has_vehicle: false,
+      vehicle_description: '',
+      capacity_kg: '0',
+      availability_notes: '',
+      active: false,
+      safety_acknowledged: false,
+    })
+
+  const [
+    volunteerError,
+    setVolunteerError,
+  ] = useState('')
 
   const createVolunteer = useMutation({
     mutationFn: () =>
@@ -198,11 +312,13 @@ export function AdministrationPage() {
         active: false,
         safety_acknowledged: false,
       })
+
       setVolunteerError('')
 
       void queryClient.invalidateQueries({
         queryKey: ['volunteers'],
       })
+
       void queryClient.invalidateQueries({
         queryKey: ['pending-volunteers'],
       })
@@ -249,6 +365,7 @@ export function AdministrationPage() {
       void queryClient.invalidateQueries({
         queryKey: ['volunteers'],
       })
+
       void queryClient.invalidateQueries({
         queryKey: ['pending-volunteers'],
       })
@@ -260,17 +377,21 @@ export function AdministrationPage() {
     },
   })
 
-  const [newOrganization, setNewOrganization] =
-    useState({
-      name: '',
-      organization_type: 'corporate',
-      contact_email: '',
-      contact_phone: '',
-      address: '',
-    })
+  const [
+    newOrganization,
+    setNewOrganization,
+  ] = useState({
+    name: '',
+    organization_type: 'corporate',
+    contact_email: '',
+    contact_phone: '',
+    address: '',
+  })
 
-  const [organizationError, setOrganizationError] =
-    useState('')
+  const [
+    organizationError,
+    setOrganizationError,
+  ] = useState('')
 
   const approveOrganization = useMutation({
     mutationFn: (id: string) =>
@@ -298,6 +419,7 @@ export function AdministrationPage() {
         contact_phone: '',
         address: '',
       })
+
       setOrganizationError('')
 
       void queryClient.invalidateQueries({
@@ -364,6 +486,14 @@ export function AdministrationPage() {
         ),
     )
 
+  const canManageAccount = (
+    candidate: AdminUser,
+  ) =>
+    candidate.id !== user?.id
+    && !protectedAccountRoles.has(
+      candidate.role,
+    )
+
   const submitVolunteerReview = (
     volunteer: VolunteerProfile,
     decision: VolunteerReviewDecision,
@@ -378,6 +508,7 @@ export function AdministrationPage() {
       setReviewError(
         'Enter a reason before rejecting a volunteer application.',
       )
+
       return
     }
 
@@ -401,8 +532,9 @@ export function AdministrationPage() {
           <h1>Administration</h1>
 
           <p>
-            Manage operational identities, volunteer applications,
-            volunteer profiles, and participating organizations.
+            Manage operational identities, volunteer
+            applications, volunteer profiles, and
+            participating organizations.
           </p>
         </div>
       </div>
@@ -483,7 +615,8 @@ export function AdministrationPage() {
                   onChange={(event) =>
                     setNewUser({
                       ...newUser,
-                      full_name: event.target.value,
+                      full_name:
+                        event.target.value,
                     })
                   }
                 />
@@ -499,7 +632,8 @@ export function AdministrationPage() {
                   onChange={(event) =>
                     setNewUser({
                       ...newUser,
-                      email: event.target.value,
+                      email:
+                        event.target.value,
                     })
                   }
                 />
@@ -509,11 +643,14 @@ export function AdministrationPage() {
                 Phone / WhatsApp
 
                 <input
-                  value={newUser.phone_number}
+                  value={
+                    newUser.phone_number
+                  }
                   onChange={(event) =>
                     setNewUser({
                       ...newUser,
-                      phone_number: event.target.value,
+                      phone_number:
+                        event.target.value,
                     })
                   }
                 />
@@ -527,7 +664,9 @@ export function AdministrationPage() {
                   onChange={(event) =>
                     setNewUser({
                       ...newUser,
-                      role: event.target.value as UserRole,
+                      role:
+                        event.target
+                          .value as UserRole,
                     })
                   }
                 >
@@ -553,7 +692,8 @@ export function AdministrationPage() {
                   onChange={(event) =>
                     setNewUser({
                       ...newUser,
-                      password: event.target.value,
+                      password:
+                        event.target.value,
                     })
                   }
                 />
@@ -568,7 +708,9 @@ export function AdministrationPage() {
               <button
                 type="submit"
                 className="button"
-                disabled={createUser.isPending}
+                disabled={
+                  createUser.isPending
+                }
               >
                 <Plus size={18} />
 
@@ -585,11 +727,17 @@ export function AdministrationPage() {
                 <h2>Operational users</h2>
 
                 <p>
-                  Reserved founder identities appear only in
-                  Governance.
+                  Reserved founder identities
+                  appear only in Governance.
                 </p>
               </div>
             </div>
+
+            {accountActionError && (
+              <div className="alert alert-error">
+                {accountActionError}
+              </div>
+            )}
 
             <div className="table-wrap">
               <table>
@@ -599,36 +747,262 @@ export function AdministrationPage() {
                     <th>Email</th>
                     <th>Role</th>
                     <th>Status</th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
 
                 <tbody>
-                  {userRows.map((adminUser) => (
-                    <tr key={adminUser.id}>
-                      <td>
-                        <strong>
-                          {adminUser.full_name}
-                        </strong>
-                      </td>
+                  {userRows.map(
+                    (adminUser) => {
+                      const manageable =
+                        canManageAccount(
+                          adminUser,
+                        )
 
-                      <td>
-                        {adminUser.email}
-                      </td>
+                      const changingThisUser =
+                        toggleUserStatus
+                          .isPending
+                        && toggleUserStatus
+                          .variables?.id
+                          === adminUser.id
 
-                      <td>
-                        {roleLabels[adminUser.role]}
-                      </td>
+                      const purgingThisUser =
+                        purgeUser.isPending
+                        && purgeUser
+                          .variables?.id
+                          === adminUser.id
 
-                      <td>
-                        {adminUser.is_active
-                          ? 'Active'
-                          : 'Disabled'}
-                      </td>
-                    </tr>
-                  ))}
+                      return (
+                        <tr
+                          key={adminUser.id}
+                        >
+                          <td>
+                            <strong>
+                              {
+                                adminUser.full_name
+                              }
+                            </strong>
+
+                            {adminUser.id
+                              === user?.id && (
+                              <small>
+                                {' '}
+                                Current account
+                              </small>
+                            )}
+                          </td>
+
+                          <td>
+                            {adminUser.email}
+                          </td>
+
+                          <td>
+                            {
+                              roleLabels[
+                                adminUser.role
+                              ]
+                            }
+                          </td>
+
+                          <td>
+                            {adminUser.is_active
+                              ? 'Active'
+                              : 'Disabled'}
+                          </td>
+
+                          <td>
+                            {manageable ? (
+                              <div>
+                                <button
+                                  type="button"
+                                  className={
+                                    'button button-small button-ghost'
+                                  }
+                                  disabled={
+                                    changingThisUser
+                                    || purgeUser
+                                      .isPending
+                                  }
+                                  onClick={() => {
+                                    setAccountActionError(
+                                      '',
+                                    )
+
+                                    toggleUserStatus.mutate(
+                                      {
+                                        id:
+                                          adminUser.id,
+                                        isActive:
+                                          !adminUser
+                                            .is_active,
+                                      },
+                                    )
+                                  }}
+                                >
+                                  <Power
+                                    size={15}
+                                  />
+
+                                  {changingThisUser
+                                    ? 'Saving…'
+                                    : adminUser
+                                        .is_active
+                                      ? 'Disable'
+                                      : 'Enable'}
+                                </button>
+
+                                <button
+                                  type="button"
+                                  className={
+                                    'button button-small button-ghost'
+                                  }
+                                  disabled={
+                                    toggleUserStatus
+                                      .isPending
+                                    || purgeUser
+                                      .isPending
+                                  }
+                                  onClick={() => {
+                                    setAccountActionError(
+                                      '',
+                                    )
+
+                                    setPurgeConfirmation(
+                                      '',
+                                    )
+
+                                    setPurgeTarget(
+                                      adminUser,
+                                    )
+                                  }}
+                                >
+                                  <Trash2
+                                    size={15}
+                                  />
+
+                                  {purgingThisUser
+                                    ? 'Purging…'
+                                    : 'Purge test account'}
+                                </button>
+                              </div>
+                            ) : (
+                              <small>
+                                Protected
+                              </small>
+                            )}
+                          </td>
+                        </tr>
+                      )
+                    },
+                  )}
                 </tbody>
               </table>
             </div>
+
+            {purgeTarget && (
+              <div className="panel">
+                <div className="panel-head">
+                  <div>
+                    <span className="eyebrow">
+                      Permanent deletion
+                    </span>
+
+                    <h3>
+                      Purge test account
+                    </h3>
+                  </div>
+
+                  <AlertTriangle
+                    size={24}
+                  />
+                </div>
+
+                <div className="alert alert-error">
+                  This permanently deletes{' '}
+                  <strong>
+                    {purgeTarget.email}
+                  </strong>{' '}
+                  and collection requests
+                  submitted by that account.
+                  This action cannot be undone.
+                </div>
+
+                <p>
+                  Assignments involving requests
+                  belonging to other residents
+                  will be preserved and transferred
+                  to a system placeholder.
+                </p>
+
+                <label>
+                  Enter the account email to
+                  confirm
+
+                  <input
+                    type="email"
+                    autoComplete="off"
+                    value={
+                      purgeConfirmation
+                    }
+                    placeholder={
+                      purgeTarget.email
+                    }
+                    onChange={(event) =>
+                      setPurgeConfirmation(
+                        event.target.value,
+                      )
+                    }
+                  />
+                </label>
+
+                <div>
+                  <button
+                    type="button"
+                    className="button"
+                    disabled={
+                      purgeUser.isPending
+                      || purgeConfirmation
+                        .trim()
+                        .toLowerCase()
+                        !== purgeTarget.email
+                          .toLowerCase()
+                    }
+                    onClick={() =>
+                      purgeUser.mutate({
+                        id:
+                          purgeTarget.id,
+                        confirmationEmail:
+                          purgeConfirmation
+                            .trim(),
+                      })
+                    }
+                  >
+                    <Trash2 size={16} />
+
+                    {purgeUser.isPending
+                      ? 'Permanently deleting…'
+                      : 'Permanently purge account'}
+                  </button>
+
+                  <button
+                    type="button"
+                    className={
+                      'button button-ghost'
+                    }
+                    disabled={
+                      purgeUser.isPending
+                    }
+                    onClick={() => {
+                      setPurgeTarget(null)
+                      setPurgeConfirmation('')
+                      setAccountActionError('')
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
           </section>
         </div>
       )}
@@ -647,16 +1021,22 @@ export function AdministrationPage() {
                 </h2>
 
                 <p>
-                  Approving an application does not immediately make
-                  the volunteer assignable. The volunteer must also
-                  complete the safety acknowledgement and activate
-                  their profile.
+                  Approving an application
+                  activates the volunteer profile
+                  and makes the volunteer available
+                  for assignments. Safety
+                  acknowledgement is retained as an
+                  operational record but does not
+                  block assignment.
                 </p>
               </div>
 
               <span>
                 <Clock3 size={17} />
-                {pendingVolunteerRows.length} pending
+                {
+                  pendingVolunteerRows.length
+                }{' '}
+                pending
               </span>
             </div>
 
@@ -666,21 +1046,28 @@ export function AdministrationPage() {
               </div>
             )}
 
-            {pendingVolunteerRows.length === 0 ? (
+            {pendingVolunteerRows.length
+              === 0 ? (
               <div className="alert">
-                There are no volunteer applications awaiting review.
+                There are no volunteer
+                applications awaiting review.
               </div>
             ) : (
               <div className="card-list">
                 {pendingVolunteerRows.map(
                   (volunteer) => {
-                    const reviewingThisVolunteer =
-                      reviewVolunteer.isPending
-                      && reviewVolunteer.variables?.id
-                        === volunteer.id
+                    const
+                      reviewingThisVolunteer =
+                        reviewVolunteer
+                          .isPending
+                        && reviewVolunteer
+                          .variables?.id
+                          === volunteer.id
 
                     return (
-                      <article key={volunteer.id}>
+                      <article
+                        key={volunteer.id}
+                      >
                         <div className="avatar">
                           {volunteer.user_name
                             .charAt(0)
@@ -689,11 +1076,15 @@ export function AdministrationPage() {
 
                         <div>
                           <strong>
-                            {volunteer.user_name}
+                            {
+                              volunteer.user_name
+                            }
                           </strong>
 
                           <small>
-                            {volunteer.user_email}
+                            {
+                              volunteer.user_email
+                            }
                           </small>
 
                           <p>
@@ -705,21 +1096,26 @@ export function AdministrationPage() {
 
                           <p>
                             Service areas:{' '}
-                            {volunteer.service_areas
+                            {volunteer
+                              .service_areas
                               || 'Not provided'}
                           </p>
 
                           <p>
                             Vehicle:{' '}
                             {volunteer.has_vehicle
-                              ? volunteer.vehicle_description
+                              ? volunteer
+                                  .vehicle_description
                                 || 'Available'
                               : 'Not provided'}
                           </p>
 
                           <p>
                             Capacity:{' '}
-                            {volunteer.capacity_kg} kg
+                            {
+                              volunteer.capacity_kg
+                            }{' '}
+                            kg
                           </p>
 
                           <label>
@@ -731,12 +1127,18 @@ export function AdministrationPage() {
                                   volunteer.id
                                 ] ?? ''
                               }
-                              onChange={(event) =>
-                                setReviewNotes({
-                                  ...reviewNotes,
-                                  [volunteer.id]:
-                                    event.target.value,
-                                })
+                              onChange={(
+                                event,
+                              ) =>
+                                setReviewNotes(
+                                  {
+                                    ...reviewNotes,
+                                    [volunteer.id]:
+                                      event
+                                        .target
+                                        .value,
+                                  },
+                                )
                               }
                               placeholder={
                                 'Optional for approval; required for rejection.'
@@ -747,7 +1149,9 @@ export function AdministrationPage() {
                           <div>
                             <button
                               type="button"
-                              className="button button-small"
+                              className={
+                                'button button-small'
+                              }
                               disabled={
                                 reviewingThisVolunteer
                               }
@@ -758,7 +1162,9 @@ export function AdministrationPage() {
                                 )
                               }
                             >
-                              <CheckCircle2 size={16} />
+                              <CheckCircle2
+                                size={16}
+                              />
 
                               {reviewingThisVolunteer
                                 ? 'Saving…'
@@ -767,7 +1173,9 @@ export function AdministrationPage() {
 
                             <button
                               type="button"
-                              className="button button-small button-ghost"
+                              className={
+                                'button button-small button-ghost'
+                              }
                               disabled={
                                 reviewingThisVolunteer
                               }
@@ -778,16 +1186,21 @@ export function AdministrationPage() {
                                 )
                               }
                             >
-                              <XCircle size={16} />
+                              <XCircle
+                                size={16}
+                              />
                               Reject
                             </button>
                           </div>
                         </div>
 
                         <span>
-                          {approvalLabels[
-                            volunteer.approval_status
-                          ]}
+                          {
+                            approvalLabels[
+                              volunteer
+                                .approval_status
+                            ]
+                          }
                         </span>
                       </article>
                     )
@@ -800,19 +1213,25 @@ export function AdministrationPage() {
           <div className="admin-split">
             <form
               className="panel admin-form"
-              onSubmit={(event: FormEvent) => {
+              onSubmit={(
+                event: FormEvent,
+              ) => {
                 event.preventDefault()
                 createVolunteer.mutate()
               }}
             >
               <div className="panel-head">
                 <div>
-                  <h2>Create volunteer profile</h2>
+                  <h2>
+                    Create volunteer profile
+                  </h2>
 
                   <p>
-                    Use this only for volunteer accounts created by
-                    an administrator. Public volunteer signup creates
-                    a pending profile automatically.
+                    Use this only for volunteer
+                    accounts created by an
+                    administrator. Public volunteer
+                    signup creates a pending profile
+                    automatically.
                   </p>
                 </div>
               </div>
@@ -823,11 +1242,14 @@ export function AdministrationPage() {
 
                   <select
                     required
-                    value={newVolunteer.user}
+                    value={
+                      newVolunteer.user
+                    }
                     onChange={(event) =>
                       setNewVolunteer({
                         ...newVolunteer,
-                        user: event.target.value,
+                        user:
+                          event.target.value,
                       })
                     }
                   >
@@ -838,12 +1260,20 @@ export function AdministrationPage() {
                     {availableVolunteerUsers.map(
                       (volunteerUser) => (
                         <option
-                          key={volunteerUser.id}
-                          value={volunteerUser.id}
+                          key={
+                            volunteerUser.id
+                          }
+                          value={
+                            volunteerUser.id
+                          }
                         >
-                          {volunteerUser.full_name}
+                          {
+                            volunteerUser.full_name
+                          }
                           {' — '}
-                          {volunteerUser.email}
+                          {
+                            volunteerUser.email
+                          }
                         </option>
                       ),
                     )}
@@ -854,7 +1284,10 @@ export function AdministrationPage() {
                   Service areas
 
                   <input
-                    value={newVolunteer.service_areas}
+                    value={
+                      newVolunteer
+                        .service_areas
+                    }
                     onChange={(event) =>
                       setNewVolunteer({
                         ...newVolunteer,
@@ -868,7 +1301,9 @@ export function AdministrationPage() {
                 <label className="check">
                   <input
                     type="checkbox"
-                    checked={newVolunteer.has_vehicle}
+                    checked={
+                      newVolunteer.has_vehicle
+                    }
                     onChange={(event) =>
                       setNewVolunteer({
                         ...newVolunteer,
@@ -888,7 +1323,8 @@ export function AdministrationPage() {
 
                   <input
                     value={
-                      newVolunteer.vehicle_description
+                      newVolunteer
+                        .vehicle_description
                     }
                     onChange={(event) =>
                       setNewVolunteer({
@@ -907,7 +1343,9 @@ export function AdministrationPage() {
                     type="number"
                     min="0"
                     step="1"
-                    value={newVolunteer.capacity_kg}
+                    value={
+                      newVolunteer.capacity_kg
+                    }
                     onChange={(event) =>
                       setNewVolunteer({
                         ...newVolunteer,
@@ -923,7 +1361,8 @@ export function AdministrationPage() {
 
                   <textarea
                     value={
-                      newVolunteer.availability_notes
+                      newVolunteer
+                        .availability_notes
                     }
                     onChange={(event) =>
                       setNewVolunteer({
@@ -936,8 +1375,9 @@ export function AdministrationPage() {
                 </label>
 
                 <div className="alert">
-                  New profiles begin pending, inactive, and without a
-                  completed safety acknowledgement.
+                  New profiles begin pending and
+                  inactive. Approval activates the
+                  profile automatically.
                 </div>
 
                 {volunteerError && (
@@ -965,11 +1405,14 @@ export function AdministrationPage() {
             <section className="panel">
               <div className="panel-head">
                 <div>
-                  <h2>Volunteer roster</h2>
+                  <h2>
+                    Volunteer roster
+                  </h2>
 
                   <p>
-                    Eligibility requires approval, activation, and a
-                    completed safety acknowledgement.
+                    Assignment eligibility requires
+                    an approved and active volunteer
+                    profile.
                   </p>
                 </div>
               </div>
@@ -977,7 +1420,9 @@ export function AdministrationPage() {
               <div className="card-list">
                 {volunteerRows.map(
                   (volunteer) => (
-                    <article key={volunteer.id}>
+                    <article
+                      key={volunteer.id}
+                    >
                       <div className="avatar">
                         {volunteer.user_name
                           .charAt(0)
@@ -986,19 +1431,25 @@ export function AdministrationPage() {
 
                       <div>
                         <strong>
-                          {volunteer.user_name}
+                          {
+                            volunteer.user_name
+                          }
                         </strong>
 
                         <small>
-                          {volunteer.user_email}
+                          {
+                            volunteer.user_email
+                          }
                         </small>
 
                         <p>
-                          {volunteer.service_areas
+                          {volunteer
+                            .service_areas
                             || 'No service areas provided'}
                           {' · '}
                           {volunteer.has_vehicle
-                            ? volunteer.vehicle_description
+                            ? volunteer
+                                .vehicle_description
                               || 'Vehicle available'
                             : 'No vehicle'}
                         </p>
@@ -1007,25 +1458,32 @@ export function AdministrationPage() {
                           Approval:{' '}
                           {
                             approvalLabels[
-                              volunteer.approval_status
+                              volunteer
+                                .approval_status
                             ]
                           }
                         </p>
 
                         <p>
                           Reviewed by:{' '}
-                          {volunteer.reviewed_by_name
+                          {volunteer
+                            .reviewed_by_name
                             || 'Not reviewed'}
                           {' · '}
                           {formatDate(
-                            volunteer.reviewed_at,
+                            volunteer
+                              .reviewed_at,
                           )}
                         </p>
 
-                        {volunteer.review_note && (
+                        {volunteer
+                          .review_note && (
                           <p>
                             Review note:{' '}
-                            {volunteer.review_note}
+                            {
+                              volunteer
+                                .review_note
+                            }
                           </p>
                         )}
 
@@ -1036,16 +1494,20 @@ export function AdministrationPage() {
                             : 'Inactive'}
                           {' · '}
                           Safety:{' '}
-                          {volunteer.safety_acknowledged
+                          {volunteer
+                            .safety_acknowledged
                             ? 'Acknowledged'
                             : 'Not acknowledged'}
                         </p>
                       </div>
 
                       <span>
-                        {volunteer.can_receive_assignments ? (
+                        {volunteer
+                          .can_receive_assignments ? (
                           <>
-                            <ShieldCheck size={16} />
+                            <ShieldCheck
+                              size={16}
+                            />
                             Eligible
                           </>
                         ) : (
@@ -1065,7 +1527,9 @@ export function AdministrationPage() {
         <div className="admin-split">
           <form
             className="panel admin-form"
-            onSubmit={(event: FormEvent) => {
+            onSubmit={(
+              event: FormEvent,
+            ) => {
               event.preventDefault()
               createOrganization.mutate()
             }}
@@ -1080,11 +1544,14 @@ export function AdministrationPage() {
 
                 <input
                   required
-                  value={newOrganization.name}
+                  value={
+                    newOrganization.name
+                  }
                   onChange={(event) =>
                     setNewOrganization({
                       ...newOrganization,
-                      name: event.target.value,
+                      name:
+                        event.target.value,
                     })
                   }
                 />
@@ -1095,7 +1562,8 @@ export function AdministrationPage() {
 
                 <select
                   value={
-                    newOrganization.organization_type
+                    newOrganization
+                      .organization_type
                   }
                   onChange={(event) =>
                     setNewOrganization({
@@ -1130,7 +1598,8 @@ export function AdministrationPage() {
                   type="email"
                   required
                   value={
-                    newOrganization.contact_email
+                    newOrganization
+                      .contact_email
                   }
                   onChange={(event) =>
                     setNewOrganization({
@@ -1147,7 +1616,8 @@ export function AdministrationPage() {
 
                 <input
                   value={
-                    newOrganization.contact_phone
+                    newOrganization
+                      .contact_phone
                   }
                   onChange={(event) =>
                     setNewOrganization({
@@ -1169,7 +1639,8 @@ export function AdministrationPage() {
                   onChange={(event) =>
                     setNewOrganization({
                       ...newOrganization,
-                      address: event.target.value,
+                      address:
+                        event.target.value,
                     })
                   }
                 />
@@ -1205,7 +1676,9 @@ export function AdministrationPage() {
             <div className="card-list">
               {organizationRows.map(
                 (organization) => (
-                  <article key={organization.id}>
+                  <article
+                    key={organization.id}
+                  >
                     <div className="org-icon">
                       <Building2 />
                     </div>
@@ -1216,14 +1689,18 @@ export function AdministrationPage() {
                       </strong>
 
                       <small>
-                        {organization.contact_email}
+                        {
+                          organization
+                            .contact_email
+                        }
                       </small>
 
                       <p>
-                        {organization.organization_type.replaceAll(
-                          '_',
-                          ' ',
-                        )}
+                        {organization.organization_type
+                          .replaceAll(
+                            '_',
+                            ' ',
+                          )}
                         {' · '}
                         {organization.address
                           || 'Dubai'}
@@ -1231,13 +1708,18 @@ export function AdministrationPage() {
                     </div>
 
                     {organization.approved ? (
-                      <span>Approved</span>
+                      <span>
+                        Approved
+                      </span>
                     ) : (
                       <button
                         type="button"
-                        className="button button-small button-ghost"
+                        className={
+                          'button button-small button-ghost'
+                        }
                         disabled={
-                          approveOrganization.isPending
+                          approveOrganization
+                            .isPending
                         }
                         onClick={() =>
                           approveOrganization.mutate(
