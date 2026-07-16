@@ -18,7 +18,10 @@ class RequestStatus(models.TextChoices):
     SCHEDULED = "scheduled", "Scheduled"
     ASSIGNED = "assigned", "Assigned"
     COLLECTED = "collected", "Collected"
-    HANDED_TO_RECYCLER = "handed_to_recycler", "Handed to recycler"
+    HANDED_TO_RECYCLER = (
+        "handed_to_recycler",
+        "Handed to recycler",
+    )
     COMPLETED = "completed", "Completed"
     CANCELLED = "cancelled", "Cancelled"
 
@@ -143,14 +146,22 @@ class CollectionRequest(UUIDTimeStampedModel):
         decimal_places=2,
         null=True,
         blank=True,
-        validators=[MinValueValidator(Decimal("0"))],
+        validators=[
+            MinValueValidator(
+                Decimal("0"),
+            )
+        ],
     )
     actual_weight_kg = models.DecimalField(
         max_digits=10,
         decimal_places=2,
         null=True,
         blank=True,
-        validators=[MinValueValidator(Decimal("0"))],
+        validators=[
+            MinValueValidator(
+                Decimal("0"),
+            )
+        ],
     )
     consent_to_contact = models.BooleanField(
         default=False,
@@ -171,7 +182,10 @@ class CollectionRequest(UUIDTimeStampedModel):
         ordering = ["-created_at"]
         indexes = [
             models.Index(
-                fields=["status", "preferred_date"],
+                fields=[
+                    "status",
+                    "preferred_date",
+                ],
             )
         ]
 
@@ -179,13 +193,19 @@ class CollectionRequest(UUIDTimeStampedModel):
         if not self.public_reference:
             suffix = "".join(
                 random.choices(
-                    string.ascii_uppercase + string.digits,
+                    string.ascii_uppercase
+                    + string.digits,
                     k=6,
                 )
             )
-            self.public_reference = f"ER-{suffix}"
+            self.public_reference = (
+                f"ER-{suffix}"
+            )
 
-        super().save(*args, **kwargs)
+        super().save(
+            *args,
+            **kwargs,
+        )
 
 
 class CollectionItem(UUIDTimeStampedModel):
@@ -208,27 +228,48 @@ class CollectionItem(UUIDTimeStampedModel):
         max_length=120,
         blank=True,
     )
-    approximate_weight_kg = models.DecimalField(
-        max_digits=8,
-        decimal_places=2,
-        null=True,
-        blank=True,
-        validators=[MinValueValidator(Decimal("0"))],
+    approximate_weight_kg = (
+        models.DecimalField(
+            max_digits=8,
+            decimal_places=2,
+            null=True,
+            blank=True,
+            validators=[
+                MinValueValidator(
+                    Decimal("0"),
+                )
+            ],
+        )
     )
     photo = models.ImageField(
-        upload_to="collection-items/%Y/%m/",
+        upload_to=(
+            "collection-items/%Y/%m/"
+        ),
         null=True,
         blank=True,
     )
 
 
-class VolunteerApprovalStatus(models.TextChoices):
-    PENDING = "pending", "Pending review"
-    APPROVED = "approved", "Approved"
-    REJECTED = "rejected", "Rejected"
+class VolunteerApprovalStatus(
+    models.TextChoices,
+):
+    PENDING = (
+        "pending",
+        "Pending review",
+    )
+    APPROVED = (
+        "approved",
+        "Approved",
+    )
+    REJECTED = (
+        "rejected",
+        "Rejected",
+    )
 
 
-class VolunteerProfile(UUIDTimeStampedModel):
+class VolunteerProfile(
+    UUIDTimeStampedModel,
+):
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
@@ -236,8 +277,12 @@ class VolunteerProfile(UUIDTimeStampedModel):
     )
     approval_status = models.CharField(
         max_length=20,
-        choices=VolunteerApprovalStatus.choices,
-        default=VolunteerApprovalStatus.PENDING,
+        choices=(
+            VolunteerApprovalStatus.choices
+        ),
+        default=(
+            VolunteerApprovalStatus.PENDING
+        ),
         db_index=True,
     )
     reviewed_by = models.ForeignKey(
@@ -245,7 +290,9 @@ class VolunteerProfile(UUIDTimeStampedModel):
         null=True,
         blank=True,
         on_delete=models.SET_NULL,
-        related_name="volunteer_profiles_reviewed",
+        related_name=(
+            "volunteer_profiles_reviewed"
+        ),
     )
     reviewed_at = models.DateTimeField(
         null=True,
@@ -261,24 +308,34 @@ class VolunteerProfile(UUIDTimeStampedModel):
     has_vehicle = models.BooleanField(
         default=False,
     )
-    vehicle_description = models.CharField(
-        max_length=160,
-        blank=True,
+    vehicle_description = (
+        models.CharField(
+            max_length=160,
+            blank=True,
+        )
     )
     capacity_kg = models.DecimalField(
         max_digits=8,
         decimal_places=2,
         default=0,
-        validators=[MinValueValidator(Decimal("0"))],
+        validators=[
+            MinValueValidator(
+                Decimal("0"),
+            )
+        ],
     )
-    availability_notes = models.TextField(
-        blank=True,
+    availability_notes = (
+        models.TextField(
+            blank=True,
+        )
     )
     active = models.BooleanField(
         default=False,
     )
-    safety_acknowledged = models.BooleanField(
-        default=False,
+    safety_acknowledged = (
+        models.BooleanField(
+            default=False,
+        )
     )
 
     class Meta:
@@ -296,19 +353,37 @@ class VolunteerProfile(UUIDTimeStampedModel):
         return (
             self.is_approved
             and self.active
-            and self.safety_acknowledged
         )
 
 
-class AssignmentStatus(models.TextChoices):
-    PROPOSED = "proposed", "Proposed"
-    ACCEPTED = "accepted", "Accepted"
-    DECLINED = "declined", "Declined"
-    COMPLETED = "completed", "Completed"
-    CANCELLED = "cancelled", "Cancelled"
+class AssignmentStatus(
+    models.TextChoices,
+):
+    PROPOSED = (
+        "proposed",
+        "Proposed",
+    )
+    ACCEPTED = (
+        "accepted",
+        "Accepted",
+    )
+    DECLINED = (
+        "declined",
+        "Declined",
+    )
+    COMPLETED = (
+        "completed",
+        "Completed",
+    )
+    CANCELLED = (
+        "cancelled",
+        "Cancelled",
+    )
 
 
-class PickupAssignment(UUIDTimeStampedModel):
+class PickupAssignment(
+    UUIDTimeStampedModel,
+):
     request = models.OneToOneField(
         CollectionRequest,
         on_delete=models.CASCADE,
@@ -322,9 +397,13 @@ class PickupAssignment(UUIDTimeStampedModel):
     assigned_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.PROTECT,
-        related_name="pickup_assignments_created",
+        related_name=(
+            "pickup_assignments_created"
+        ),
     )
-    scheduled_for = models.DateTimeField()
+    scheduled_for = (
+        models.DateTimeField()
+    )
     status = models.CharField(
         max_length=20,
         choices=AssignmentStatus.choices,
@@ -338,7 +417,9 @@ class PickupAssignment(UUIDTimeStampedModel):
         ordering = ["scheduled_for"]
 
 
-class StatusTransition(UUIDTimeStampedModel):
+class StatusTransition(
+    UUIDTimeStampedModel,
+):
     request = models.ForeignKey(
         CollectionRequest,
         on_delete=models.CASCADE,
@@ -364,7 +445,9 @@ class StatusTransition(UUIDTimeStampedModel):
         ordering = ["created_at"]
 
 
-class HandoverBatch(UUIDTimeStampedModel):
+class HandoverBatch(
+    UUIDTimeStampedModel,
+):
     reference = models.CharField(
         max_length=60,
         unique=True,
@@ -378,15 +461,25 @@ class HandoverBatch(UUIDTimeStampedModel):
         max_length=120,
         blank=True,
     )
-    total_weight_kg = models.DecimalField(
-        max_digits=12,
-        decimal_places=2,
-        validators=[MinValueValidator(Decimal("0"))],
+    total_weight_kg = (
+        models.DecimalField(
+            max_digits=12,
+            decimal_places=2,
+            validators=[
+                MinValueValidator(
+                    Decimal("0"),
+                )
+            ],
+        )
     )
-    receipt_document = models.FileField(
-        upload_to="handover-receipts/%Y/%m/",
-        null=True,
-        blank=True,
+    receipt_document = (
+        models.FileField(
+            upload_to=(
+                "handover-receipts/%Y/%m/"
+            ),
+            null=True,
+            blank=True,
+        )
     )
     requests = models.ManyToManyField(
         CollectionRequest,
@@ -402,7 +495,9 @@ class HandoverBatch(UUIDTimeStampedModel):
         ordering = ["-handover_date"]
 
 
-class HandoverRequest(UUIDTimeStampedModel):
+class HandoverRequest(
+    UUIDTimeStampedModel,
+):
     batch = models.ForeignKey(
         HandoverBatch,
         on_delete=models.CASCADE,
@@ -411,8 +506,14 @@ class HandoverRequest(UUIDTimeStampedModel):
         CollectionRequest,
         on_delete=models.PROTECT,
     )
-    verified_weight_kg = models.DecimalField(
-        max_digits=10,
-        decimal_places=2,
-        validators=[MinValueValidator(Decimal("0"))],
+    verified_weight_kg = (
+        models.DecimalField(
+            max_digits=10,
+            decimal_places=2,
+            validators=[
+                MinValueValidator(
+                    Decimal("0"),
+                )
+            ],
+        )
     )

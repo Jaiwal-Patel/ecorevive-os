@@ -295,15 +295,6 @@ class VolunteerProfileSerializer(serializers.ModelSerializer):
             ),
         )
 
-        safety_acknowledged = attrs.get(
-            "safety_acknowledged",
-            getattr(
-                instance,
-                "safety_acknowledged",
-                False,
-            ),
-        )
-
         if (
             active
             and approval_status
@@ -314,16 +305,6 @@ class VolunteerProfileSerializer(serializers.ModelSerializer):
                     "active": (
                         "A volunteer cannot be activated until the "
                         "application has been approved."
-                    )
-                }
-            )
-
-        if active and not safety_acknowledged:
-            raise serializers.ValidationError(
-                {
-                    "active": (
-                        "A volunteer cannot be activated until the "
-                        "safety acknowledgement is complete."
                     )
                 }
             )
@@ -393,6 +374,7 @@ class VolunteerReviewSerializer(serializers.Serializer):
     def update(self, instance, validated_data):
         actor = self.context["request"].user
         previous_status = instance.approval_status
+        previous_active = instance.active
         decision = validated_data["decision"]
         review_note = validated_data.get(
             "review_note",
@@ -403,21 +385,19 @@ class VolunteerReviewSerializer(serializers.Serializer):
         instance.reviewed_by = actor
         instance.reviewed_at = timezone.now()
         instance.review_note = review_note
-
-        update_fields = [
-            "approval_status",
-            "reviewed_by",
-            "reviewed_at",
-            "review_note",
-            "updated_at",
-        ]
-
-        if decision == VolunteerApprovalStatus.REJECTED:
-            instance.active = False
-            update_fields.append("active")
+        instance.active = (
+            decision == VolunteerApprovalStatus.APPROVED
+        )
 
         instance.save(
-            update_fields=update_fields,
+            update_fields=[
+                "approval_status",
+                "reviewed_by",
+                "reviewed_at",
+                "review_note",
+                "active",
+                "updated_at",
+            ],
         )
 
         record_event(
@@ -432,7 +412,9 @@ class VolunteerReviewSerializer(serializers.Serializer):
             object_id=instance.id,
             metadata={
                 "previous_status": previous_status,
+                "previous_active": previous_active,
                 "decision": decision,
+                "active": instance.active,
                 "review_note": review_note,
                 "volunteer_user_id": str(instance.user_id),
             },
@@ -481,11 +463,8 @@ class PickupAssignmentSerializer(serializers.ModelSerializer):
     def validate_volunteer(self, volunteer):
         if not volunteer.can_receive_assignments:
             raise serializers.ValidationError(
-                
-                    "This volunteer is not eligible for assignments. "
-                    "The volunteer must be approved, active, and have "
-                    "completed the safety acknowledgement."
-                
+                "This volunteer is not eligible for assignments. "
+                "The volunteer must be approved and active."
             )
 
         return volunteer
