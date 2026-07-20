@@ -2,13 +2,18 @@ from django.core.exceptions import (
     ValidationError as DjangoValidationError,
 )
 from django.db import transaction
+from django.utils import timezone
 from rest_framework import (
     mixins,
     status,
     viewsets,
 )
 from rest_framework.decorators import action
-from rest_framework.permissions import AllowAny
+from rest_framework.exceptions import PermissionDenied
+from rest_framework.permissions import (
+    AllowAny,
+    IsAuthenticated,
+)
 from rest_framework.response import Response
 from rest_framework.serializers import ValidationError
 
@@ -30,6 +35,7 @@ from .serializers import (
     CollectionRequestSerializer,
     HandoverBatchSerializer,
     ItemCategorySerializer,
+    PickupAssignmentDecisionSerializer,
     PickupAssignmentSerializer,
     VolunteerProfileSerializer,
     VolunteerReviewSerializer,
@@ -64,6 +70,7 @@ class ItemCategoryViewSet(
 class CollectionRequestViewSet(viewsets.ModelViewSet):
     queryset = CollectionRequest.objects.all()
     serializer_class = CollectionRequestSerializer
+    permission_classes = [IsAuthenticated]
     http_method_names = [
         "get",
         "post",
@@ -102,13 +109,8 @@ class CollectionRequestViewSet(viewsets.ModelViewSet):
     def perform_update(self, serializer):
         instance = serializer.instance
 
-        if (
-            self.request.user.role not in ADMIN_ROLES
-            and instance.status != RequestStatus.DRAFT
-        ):
-            raise ValidationError(
-                "Only draft requests can be edited by the requester."
-            )
+        if self.request.user.role not in ADMIN_ROLES and instance.status != RequestStatus.DRAFT:
+            raise ValidationError("Only draft requests can be edited by the requester.")
 
         serializer.save()
 
@@ -119,13 +121,8 @@ class CollectionRequestViewSet(viewsets.ModelViewSet):
     def submit(self, request, pk=None):
         request_obj = self.get_object()
 
-        if (
-            request_obj.requester != request.user
-            and request.user.role not in ADMIN_ROLES
-        ):
-            return Response(
-                status=status.HTTP_403_FORBIDDEN,
-            )
+        if request_obj.requester != request.user and request.user.role not in ADMIN_ROLES:
+            raise PermissionDenied("You cannot submit this collection request.")
 
         try:
             transition_request(
@@ -141,6 +138,8 @@ class CollectionRequestViewSet(viewsets.ModelViewSet):
             raise ValidationError(
                 exc.messages,
             ) from exc
+
+        request_obj.refresh_from_db()
 
         return Response(
             self.get_serializer(request_obj).data,
@@ -177,6 +176,8 @@ class CollectionRequestViewSet(viewsets.ModelViewSet):
                 exc.messages,
             ) from exc
 
+        request_obj.refresh_from_db()
+
         return Response(
             self.get_serializer(request_obj).data,
         )
@@ -185,6 +186,7 @@ class CollectionRequestViewSet(viewsets.ModelViewSet):
 class VolunteerProfileViewSet(viewsets.ModelViewSet):
     queryset = VolunteerProfile.objects.all()
     serializer_class = VolunteerProfileSerializer
+    permission_classes = [IsAuthenticated]
     http_method_names = [
         "get",
         "post",
@@ -197,6 +199,8 @@ class VolunteerProfileViewSet(viewsets.ModelViewSet):
         queryset = VolunteerProfile.objects.select_related(
             "user",
             "reviewed_by",
+        ).exclude(
+            user__email=("deleted-volunteer@ecorevive.invalid"),
         )
 
         if self.request.user.role in ADMIN_ROLES:
@@ -205,18 +209,13 @@ class VolunteerProfileViewSet(viewsets.ModelViewSet):
             )
 
             if approval_status:
-                valid_statuses = {
-                    choice
-                    for choice, _label
-                    in VolunteerApprovalStatus.choices
-                }
+                valid_statuses = {choice for choice, _label in VolunteerApprovalStatus.choices}
 
                 if approval_status not in valid_statuses:
                     raise ValidationError(
                         {
                             "approval_status": (
-                                "Invalid approval status. "
-                                "Use pending, approved, or rejected."
+                                "Invalid approval status. Use pending, approved, or rejected."
                             )
                         }
                     )
@@ -237,20 +236,13 @@ class VolunteerProfileViewSet(viewsets.ModelViewSet):
             return
 
         if self.request.user.role != UserRole.VOLUNTEER:
-            raise ValidationError(
-                "Only volunteer accounts can create a volunteer profile."
-            )
+            raise PermissionDenied("Only volunteer accounts can create a volunteer profile.")
 
         if VolunteerProfile.objects.filter(
             user=self.request.user,
         ).exists():
             raise ValidationError(
-                {
-                    "user": (
-                        "A volunteer profile already exists "
-                        "for this account."
-                    )
-                }
+                {"user": ("A volunteer profile already exists for this account.")}
             )
 
         serializer.save(
@@ -307,6 +299,7 @@ class VolunteerProfileViewSet(viewsets.ModelViewSet):
                 many=True,
                 context=self.get_serializer_context(),
             )
+
             return self.get_paginated_response(
                 serializer.data,
             )
@@ -324,7 +317,7 @@ class VolunteerProfileViewSet(viewsets.ModelViewSet):
 
 class PickupAssignmentViewSet(viewsets.ModelViewSet):
     serializer_class = PickupAssignmentSerializer
-    permission_classes = [IsOperationalAdmin]
+    permission_classes = [IsAuthenticated]
     http_method_names = [
         "get",
         "post",
@@ -334,172 +327,347 @@ class PickupAssignmentViewSet(viewsets.ModelViewSet):
     ]
 
     def get_queryset(self):
-        return PickupAssignment.objects.select_related(
+        queryset = PickupAssignment.objects.select_related(
             "request",
+            "request__requester",
+            "volunteer",
             "volunteer__user",
             "assigned_by",
         )
 
-    @transaction.atomic
-    def perform_create(self, serializer):
-        request_obj = serializer.validated_data["request"]
+        user = self.request.user
 
-        assignment = serializer.save(
-            assigned_by=self.request.user,
+        if user.role in ADMIN_ROLES:
+            return queryset
+
+        if user.role == UserRole.VOLUNTEER:
+            return queryset.filter(
+                volunteer__user=user,
+            )
+
+        return queryset.none()
+
+    def get_serializer_class(self):
+        if self.action in {
+            "accept",
+            "decline",
+        }:
+            return PickupAssignmentDecisionSerializer
+
+        return PickupAssignmentSerializer
+
+    def _require_admin(self):
+        if self.request.user.role not in ADMIN_ROLES:
+            raise PermissionDenied("Only an operational administrator may manage assignments.")
+
+    def _require_assignment_owner(
+        self,
+        assignment,
+    ):
+        user = self.request.user
+
+        if user.role != UserRole.VOLUNTEER:
+            raise PermissionDenied("Only volunteer accounts can respond to assignments.")
+
+        if assignment.volunteer.user_id != user.id:
+            raise PermissionDenied("You cannot respond to another volunteer's assignment.")
+
+    @transaction.atomic
+    def create(self, request, *args, **kwargs):
+        self._require_admin()
+
+        request_id = request.data.get("request")
+
+        if not request_id:
+            raise ValidationError(
+                {
+                    "request": "This field is required.",
+                }
+            )
+
+        try:
+            collection_request = CollectionRequest.objects.select_for_update().get(
+                id=request_id,
+            )
+        except CollectionRequest.DoesNotExist as exc:
+            raise ValidationError(
+                {"request": ("The selected collection request does not exist.")}
+            ) from exc
+
+        if collection_request.status == RequestStatus.APPROVED:
+            try:
+                transition_request(
+                    request_obj=collection_request,
+                    to_status=RequestStatus.SCHEDULED,
+                    actor=request.user,
+                    note=("Request prepared for volunteer assignment."),
+                )
+            except DjangoValidationError as exc:
+                raise ValidationError(
+                    exc.messages,
+                ) from exc
+
+        return super().create(
+            request,
+            *args,
+            **kwargs,
         )
 
-        if request_obj.status == RequestStatus.APPROVED:
-            transition_request(
-                request_obj=request_obj,
-                to_status=RequestStatus.SCHEDULED,
-                actor=self.request.user,
-                note=(
-                    "Pickup scheduled for "
-                    f"{assignment.scheduled_for.isoformat()}"
-                ),
+    def perform_create(self, serializer):
+        self._require_admin()
+
+        serializer.save()
+
+    def perform_update(self, serializer):
+        self._require_admin()
+
+        serializer.save()
+
+    @action(
+        detail=False,
+        methods=["get"],
+        url_path="mine",
+    )
+    def mine(self, request):
+        if request.user.role != UserRole.VOLUNTEER:
+            raise PermissionDenied("Only volunteers have a personal assignment list.")
+
+        queryset = self.get_queryset()
+
+        assignment_status = request.query_params.get(
+            "status",
+        )
+
+        if assignment_status:
+            valid_statuses = {value for value, _label in AssignmentStatus.choices}
+
+            if assignment_status not in valid_statuses:
+                raise ValidationError({"status": ("Invalid assignment status.")})
+
+            queryset = queryset.filter(
+                status=assignment_status,
             )
+
+        page = self.paginate_queryset(queryset)
+
+        if page is not None:
+            serializer = PickupAssignmentSerializer(
+                page,
+                many=True,
+                context=self.get_serializer_context(),
+            )
+
+            return self.get_paginated_response(
+                serializer.data,
+            )
+
+        serializer = PickupAssignmentSerializer(
+            queryset,
+            many=True,
+            context=self.get_serializer_context(),
+        )
+
+        return Response(
+            serializer.data,
+        )
+
+    @action(
+        detail=True,
+        methods=["post"],
+        url_path="accept",
+    )
+    @transaction.atomic
+    def accept(self, request, pk=None):
+        assignment = self.get_object()
+
+        self._require_assignment_owner(
+            assignment,
+        )
+
+        serializer = PickupAssignmentDecisionSerializer(
+            instance=assignment,
+            data={
+                "decision": AssignmentStatus.ACCEPTED,
+            },
+            context={
+                "request": request,
+            },
+        )
+        serializer.is_valid(
+            raise_exception=True,
+        )
+        assignment = serializer.save()
+
+        request_obj = assignment.request
+
+        if request_obj.status == RequestStatus.APPROVED:
+            try:
+                transition_request(
+                    request_obj=request_obj,
+                    to_status=RequestStatus.SCHEDULED,
+                    actor=request.user,
+                    note=("Request scheduled before volunteer acceptance."),
+                )
+            except DjangoValidationError as exc:
+                raise ValidationError(
+                    exc.messages,
+                ) from exc
+
+        request_obj.refresh_from_db()
 
         if request_obj.status == RequestStatus.SCHEDULED:
-            transition_request(
-                request_obj=request_obj,
-                to_status=RequestStatus.ASSIGNED,
-                actor=self.request.user,
-                note=(
-                    "Assigned to "
-                    f"{assignment.volunteer.user.full_name}"
+            try:
+                transition_request(
+                    request_obj=request_obj,
+                    to_status=RequestStatus.ASSIGNED,
+                    actor=request.user,
+                    note=("Volunteer accepted the pickup assignment."),
+                )
+            except DjangoValidationError as exc:
+                raise ValidationError(
+                    exc.messages,
+                ) from exc
+
+        assignment.refresh_from_db()
+
+        return Response(
+            PickupAssignmentSerializer(
+                assignment,
+                context=self.get_serializer_context(),
+            ).data,
+            status=status.HTTP_200_OK,
+        )
+
+    @action(
+        detail=True,
+        methods=["post"],
+        url_path="decline",
+    )
+    @transaction.atomic
+    def decline(self, request, pk=None):
+        assignment = self.get_object()
+
+        self._require_assignment_owner(
+            assignment,
+        )
+
+        serializer = PickupAssignmentDecisionSerializer(
+            instance=assignment,
+            data={
+                "decision": AssignmentStatus.DECLINED,
+                "decline_reason": request.data.get(
+                    "decline_reason",
+                    "",
                 ),
+            },
+            context={
+                "request": request,
+            },
+        )
+        serializer.is_valid(
+            raise_exception=True,
+        )
+        assignment = serializer.save()
+
+        return Response(
+            PickupAssignmentSerializer(
+                assignment,
+                context=self.get_serializer_context(),
+            ).data,
+            status=status.HTTP_200_OK,
+        )
+
+    @action(
+        detail=True,
+        methods=["post"],
+        permission_classes=[IsOperationalAdmin],
+        url_path="complete",
+    )
+    @transaction.atomic
+    def complete(self, request, pk=None):
+        assignment = self.get_object()
+
+        if assignment.status != AssignmentStatus.ACCEPTED:
+            raise ValidationError({"status": ("Only an accepted assignment can be completed.")})
+
+        request_obj = assignment.request
+
+        if request_obj.status != RequestStatus.ASSIGNED:
+            raise ValidationError(
+                {
+                    "request": (
+                        "The collection request must be assigned "
+                        "before the pickup can be completed."
+                    )
+                }
             )
 
+        completion_note = request.data.get(
+            "note",
+            "",
+        ).strip()
+
+        assignment.status = AssignmentStatus.COMPLETED
+        assignment.save(
+            update_fields=[
+                "status",
+                "updated_at",
+            ],
+        )
+
+        try:
+            transition_request(
+                request_obj=request_obj,
+                to_status=RequestStatus.COLLECTED,
+                actor=request.user,
+                note=(
+                    completion_note
+                    or (f"Pickup completed by {assignment.volunteer.user.full_name}")
+                ),
+            )
+        except DjangoValidationError as exc:
+            raise ValidationError(
+                exc.messages,
+            ) from exc
+
         record_event(
-            actor=self.request.user,
-            event_type="pickup.assignment_created",
-            summary=(
-                f"Assigned {request_obj.public_reference} to "
-                f"{assignment.volunteer.user.full_name}"
-            ),
+            actor=request.user,
+            event_type="pickup.assignment_completed",
+            summary=(f"Completed pickup {request_obj.public_reference}"),
             object_type="PickupAssignment",
             object_id=assignment.id,
             metadata={
-                "request_id": str(request_obj.id),
-                "request_reference": request_obj.public_reference,
-                "volunteer_id": str(assignment.volunteer_id),
-                "volunteer_name": (
-                    assignment.volunteer.user.full_name
+                "request_id": str(
+                    request_obj.id,
                 ),
-                "scheduled_for": (
-                    assignment.scheduled_for.isoformat()
+                "request_reference": (request_obj.public_reference),
+                "volunteer_profile_id": str(
+                    assignment.volunteer_id,
                 ),
-                "status": assignment.status,
-                "instructions": assignment.instructions,
+                "volunteer_user_id": str(
+                    assignment.volunteer.user_id,
+                ),
+                "completion_note": completion_note,
+                "completed_at": timezone.now().isoformat(),
             },
         )
 
-    @transaction.atomic
-    def perform_update(self, serializer):
-        assignment = serializer.instance
+        assignment.refresh_from_db()
 
-        previous_volunteer_id = assignment.volunteer_id
-        previous_volunteer_name = (
-            assignment.volunteer.user.full_name
+        return Response(
+            PickupAssignmentSerializer(
+                assignment,
+                context=self.get_serializer_context(),
+            ).data,
+            status=status.HTTP_200_OK,
         )
-        previous_scheduled_for = assignment.scheduled_for
-        previous_status = assignment.status
-        previous_instructions = assignment.instructions
-
-        updated_assignment = serializer.save()
-
-        changed_fields = {}
-
-        if (
-            previous_volunteer_id
-            != updated_assignment.volunteer_id
-        ):
-            changed_fields["volunteer"] = {
-                "from_id": str(previous_volunteer_id),
-                "from_name": previous_volunteer_name,
-                "to_id": str(
-                    updated_assignment.volunteer_id,
-                ),
-                "to_name": (
-                    updated_assignment.volunteer.user.full_name
-                ),
-            }
-
-        if (
-            previous_scheduled_for
-            != updated_assignment.scheduled_for
-        ):
-            changed_fields["scheduled_for"] = {
-                "from": previous_scheduled_for.isoformat(),
-                "to": (
-                    updated_assignment.scheduled_for.isoformat()
-                ),
-            }
-
-        if previous_status != updated_assignment.status:
-            changed_fields["status"] = {
-                "from": previous_status,
-                "to": updated_assignment.status,
-            }
-
-        if (
-            previous_instructions
-            != updated_assignment.instructions
-        ):
-            changed_fields["instructions"] = {
-                "from": previous_instructions,
-                "to": updated_assignment.instructions,
-            }
-
-        if changed_fields:
-            record_event(
-                actor=self.request.user,
-                event_type="pickup.assignment_updated",
-                summary=(
-                    "Updated pickup assignment for "
-                    f"{updated_assignment.request.public_reference}"
-                ),
-                object_type="PickupAssignment",
-                object_id=updated_assignment.id,
-                metadata={
-                    "request_id": str(
-                        updated_assignment.request_id,
-                    ),
-                    "request_reference": (
-                        updated_assignment.request.public_reference
-                    ),
-                    "changes": changed_fields,
-                },
-            )
-
-        if (
-            updated_assignment.status
-            == AssignmentStatus.COMPLETED
-            and previous_status
-            != AssignmentStatus.COMPLETED
-        ):
-            request_obj = updated_assignment.request
-
-            if request_obj.status == RequestStatus.ASSIGNED:
-                transition_request(
-                    request_obj=request_obj,
-                    to_status=RequestStatus.COLLECTED,
-                    actor=self.request.user,
-                    note=(
-                        "Pickup completed by "
-                        f"{updated_assignment.volunteer.user.full_name}"
-                    ),
-                )
 
 
 class HandoverBatchViewSet(viewsets.ModelViewSet):
-    queryset = (
-        HandoverBatch.objects.prefetch_related(
-            "handoverrequest_set__request",
-        )
-        .select_related(
-            "recorded_by",
-        )
+    queryset = HandoverBatch.objects.prefetch_related(
+        "handoverrequest_set__request",
+    ).select_related(
+        "recorded_by",
     )
     serializer_class = HandoverBatchSerializer
     permission_classes = [IsOperationalAdmin]
@@ -519,9 +687,7 @@ class HandoverBatchViewSet(viewsets.ModelViewSet):
             "request",
         ):
             request_obj = link.request
-            request_obj.actual_weight_kg = (
-                link.verified_weight_kg
-            )
+            request_obj.actual_weight_kg = link.verified_weight_kg
             request_obj.save(
                 update_fields=[
                     "actual_weight_kg",
@@ -534,18 +700,13 @@ class HandoverBatchViewSet(viewsets.ModelViewSet):
                     request_obj=request_obj,
                     to_status=RequestStatus.HANDED_TO_RECYCLER,
                     actor=self.request.user,
-                    note=(
-                        "Included in handover batch "
-                        f"{batch.reference}"
-                    ),
+                    note=(f"Included in handover batch {batch.reference}"),
                 )
 
         record_event(
             actor=self.request.user,
             event_type="handover.batch_created",
-            summary=(
-                f"Recorded handover batch {batch.reference}"
-            ),
+            summary=(f"Recorded handover batch {batch.reference}"),
             object_type="HandoverBatch",
             object_id=batch.id,
             metadata={

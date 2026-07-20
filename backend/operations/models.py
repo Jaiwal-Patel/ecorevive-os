@@ -361,7 +361,7 @@ class AssignmentStatus(
 ):
     PROPOSED = (
         "proposed",
-        "Proposed",
+        "Awaiting volunteer response",
     )
     ACCEPTED = (
         "accepted",
@@ -401,20 +401,69 @@ class PickupAssignment(
             "pickup_assignments_created"
         ),
     )
-    scheduled_for = (
-        models.DateTimeField()
-    )
+    scheduled_for = models.DateTimeField()
     status = models.CharField(
         max_length=20,
         choices=AssignmentStatus.choices,
         default=AssignmentStatus.PROPOSED,
+        db_index=True,
     )
     instructions = models.TextField(
         blank=True,
     )
 
+    accepted_at = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
+    declined_at = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
+    decline_reason = models.TextField(
+        blank=True,
+    )
+
     class Meta:
         ordering = ["scheduled_for"]
+        indexes = [
+            models.Index(
+                fields=[
+                    "volunteer",
+                    "status",
+                    "scheduled_for",
+                ],
+            ),
+        ]
+
+    @property
+    def is_awaiting_response(self):
+        return (
+            self.status
+            == AssignmentStatus.PROPOSED
+        )
+
+    @property
+    def can_be_accepted(self):
+        return (
+            self.status
+            == AssignmentStatus.PROPOSED
+            and self.volunteer.can_receive_assignments
+        )
+
+    @property
+    def can_be_declined(self):
+        return (
+            self.status
+            == AssignmentStatus.PROPOSED
+        )
+
+    @property
+    def can_be_completed(self):
+        return (
+            self.status
+            == AssignmentStatus.ACCEPTED
+        )
 
 
 class StatusTransition(
