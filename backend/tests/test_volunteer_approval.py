@@ -96,8 +96,7 @@ def test_admin_can_list_pending_volunteer_applications(
     approved_profile = create_volunteer_profile(
         email="approved-list@example.com",
         approval_status=VolunteerApprovalStatus.APPROVED,
-        active=False,
-        safety_acknowledged=False,
+        active=True,
     )
 
     api_client.force_authenticate(operations_admin)
@@ -108,10 +107,7 @@ def test_admin_can_list_pending_volunteer_applications(
 
     assert response.status_code == status.HTTP_200_OK
 
-    profile_ids = {
-        item["id"]
-        for item in response_items(response)
-    }
+    profile_ids = {item["id"] for item in response_items(response)}
 
     assert str(pending_volunteer.id) in profile_ids
     assert str(approved_profile.id) not in profile_ids
@@ -126,8 +122,7 @@ def test_admin_can_filter_profiles_by_approval_status(
     approved_profile = create_volunteer_profile(
         email="approved-filter@example.com",
         approval_status=VolunteerApprovalStatus.APPROVED,
-        active=False,
-        safety_acknowledged=False,
+        active=True,
     )
 
     api_client.force_authenticate(operations_admin)
@@ -141,10 +136,7 @@ def test_admin_can_filter_profiles_by_approval_status(
 
     assert response.status_code == status.HTTP_200_OK
 
-    profile_ids = {
-        item["id"]
-        for item in response_items(response)
-    }
+    profile_ids = {item["id"] for item in response_items(response)}
 
     assert str(approved_profile.id) in profile_ids
     assert str(pending_volunteer.id) not in profile_ids
@@ -199,7 +191,7 @@ def test_volunteer_cannot_list_all_pending_applications(
 
 
 @pytest.mark.django_db
-def test_admin_can_approve_pending_volunteer(
+def test_admin_can_approve_and_activate_pending_volunteer(
     api_client,
     operations_admin,
     pending_volunteer,
@@ -207,10 +199,7 @@ def test_admin_can_approve_pending_volunteer(
     api_client.force_authenticate(operations_admin)
 
     response = api_client.post(
-        (
-            f"/api/volunteer-profiles/"
-            f"{pending_volunteer.id}/review/"
-        ),
+        (f"/api/volunteer-profiles/{pending_volunteer.id}/review/"),
         {
             "decision": VolunteerApprovalStatus.APPROVED,
             "review_note": "Identity and application reviewed.",
@@ -222,21 +211,13 @@ def test_admin_can_approve_pending_volunteer(
 
     pending_volunteer.refresh_from_db()
 
-    assert (
-        pending_volunteer.approval_status
-        == VolunteerApprovalStatus.APPROVED
-    )
+    assert pending_volunteer.approval_status == VolunteerApprovalStatus.APPROVED
     assert pending_volunteer.reviewed_by == operations_admin
     assert pending_volunteer.reviewed_at is not None
-    assert (
-        pending_volunteer.review_note
-        == "Identity and application reviewed."
-    )
-
-    # Approval and operational activation remain separate.
-    assert pending_volunteer.active is False
+    assert pending_volunteer.review_note == "Identity and application reviewed."
+    assert pending_volunteer.active is True
     assert pending_volunteer.safety_acknowledged is False
-    assert pending_volunteer.can_receive_assignments is False
+    assert pending_volunteer.can_receive_assignments is True
 
 
 @pytest.mark.django_db
@@ -248,10 +229,7 @@ def test_approval_creates_audit_event(
     api_client.force_authenticate(operations_admin)
 
     response = api_client.post(
-        (
-            f"/api/volunteer-profiles/"
-            f"{pending_volunteer.id}/review/"
-        ),
+        (f"/api/volunteer-profiles/{pending_volunteer.id}/review/"),
         {
             "decision": VolunteerApprovalStatus.APPROVED,
             "review_note": "Approved after review.",
@@ -268,18 +246,11 @@ def test_approval_creates_audit_event(
     )
 
     assert event.actor == operations_admin
-    assert (
-        event.metadata["previous_status"]
-        == VolunteerApprovalStatus.PENDING
-    )
-    assert (
-        event.metadata["decision"]
-        == VolunteerApprovalStatus.APPROVED
-    )
-    assert (
-        event.metadata["review_note"]
-        == "Approved after review."
-    )
+    assert event.metadata["previous_status"] == VolunteerApprovalStatus.PENDING
+    assert event.metadata["previous_active"] is False
+    assert event.metadata["decision"] == VolunteerApprovalStatus.APPROVED
+    assert event.metadata["active"] is True
+    assert event.metadata["review_note"] == "Approved after review."
 
 
 @pytest.mark.django_db
@@ -291,10 +262,7 @@ def test_rejection_requires_a_reason(
     api_client.force_authenticate(operations_admin)
 
     response = api_client.post(
-        (
-            f"/api/volunteer-profiles/"
-            f"{pending_volunteer.id}/review/"
-        ),
+        (f"/api/volunteer-profiles/{pending_volunteer.id}/review/"),
         {
             "decision": VolunteerApprovalStatus.REJECTED,
             "review_note": "",
@@ -307,12 +275,10 @@ def test_rejection_requires_a_reason(
 
     pending_volunteer.refresh_from_db()
 
-    assert (
-        pending_volunteer.approval_status
-        == VolunteerApprovalStatus.PENDING
-    )
+    assert pending_volunteer.approval_status == VolunteerApprovalStatus.PENDING
     assert pending_volunteer.reviewed_by is None
     assert pending_volunteer.reviewed_at is None
+    assert pending_volunteer.active is False
 
 
 @pytest.mark.django_db
@@ -342,17 +308,11 @@ def test_admin_can_reject_volunteer_and_deactivate_profile(
 
     profile.refresh_from_db()
 
-    assert (
-        profile.approval_status
-        == VolunteerApprovalStatus.REJECTED
-    )
+    assert profile.approval_status == VolunteerApprovalStatus.REJECTED
     assert profile.active is False
     assert profile.reviewed_by == operations_admin
     assert profile.reviewed_at is not None
-    assert (
-        profile.review_note
-        == "Application no longer meets requirements."
-    )
+    assert profile.review_note == "Application no longer meets requirements."
     assert profile.can_receive_assignments is False
 
 
@@ -364,8 +324,7 @@ def test_repeating_same_review_decision_is_rejected(
     profile = create_volunteer_profile(
         email="already-approved@example.com",
         approval_status=VolunteerApprovalStatus.APPROVED,
-        active=False,
-        safety_acknowledged=False,
+        active=True,
     )
 
     api_client.force_authenticate(operations_admin)
@@ -392,10 +351,7 @@ def test_resident_cannot_review_volunteer_application(
     api_client.force_authenticate(resident)
 
     response = api_client.post(
-        (
-            f"/api/volunteer-profiles/"
-            f"{pending_volunteer.id}/review/"
-        ),
+        (f"/api/volunteer-profiles/{pending_volunteer.id}/review/"),
         {
             "decision": VolunteerApprovalStatus.APPROVED,
             "review_note": "Unauthorized approval attempt.",
@@ -407,10 +363,8 @@ def test_resident_cannot_review_volunteer_application(
 
     pending_volunteer.refresh_from_db()
 
-    assert (
-        pending_volunteer.approval_status
-        == VolunteerApprovalStatus.PENDING
-    )
+    assert pending_volunteer.approval_status == VolunteerApprovalStatus.PENDING
+    assert pending_volunteer.active is False
 
 
 @pytest.mark.django_db
@@ -425,7 +379,6 @@ def test_pending_volunteer_cannot_be_activated(
         f"/api/volunteer-profiles/{pending_volunteer.id}/",
         {
             "active": True,
-            "safety_acknowledged": True,
         },
         format="json",
     )
@@ -447,7 +400,6 @@ def test_rejected_volunteer_cannot_be_activated(
         email="rejected-activation@example.com",
         approval_status=VolunteerApprovalStatus.REJECTED,
         active=False,
-        safety_acknowledged=False,
     )
 
     api_client.force_authenticate(operations_admin)
@@ -456,7 +408,6 @@ def test_rejected_volunteer_cannot_be_activated(
         f"/api/volunteer-profiles/{profile.id}/",
         {
             "active": True,
-            "safety_acknowledged": True,
         },
         format="json",
     )
@@ -470,25 +421,26 @@ def test_rejected_volunteer_cannot_be_activated(
 
 
 @pytest.mark.django_db
-def test_approved_volunteer_can_acknowledge_safety_and_activate(
+def test_admin_can_update_approved_volunteer_operational_details(
     api_client,
-    volunteer_user,
+    operations_admin,
 ):
-    profile = VolunteerProfile.objects.create(
-        user=volunteer_user,
+    profile = create_volunteer_profile(
+        email="operational-details@example.com",
         approval_status=VolunteerApprovalStatus.APPROVED,
-        active=False,
+        active=True,
         safety_acknowledged=False,
     )
 
-    api_client.force_authenticate(volunteer_user)
+    api_client.force_authenticate(operations_admin)
 
     response = api_client.patch(
         f"/api/volunteer-profiles/{profile.id}/",
         {
-            "active": True,
-            "safety_acknowledged": True,
             "service_areas": "The Greens, The Views",
+            "has_vehicle": True,
+            "vehicle_description": "SUV",
+            "capacity_kg": "80.00",
             "availability_notes": "Available on weekends.",
         },
         format="json",
@@ -498,10 +450,12 @@ def test_approved_volunteer_can_acknowledge_safety_and_activate(
 
     profile.refresh_from_db()
 
-    assert profile.active is True
-    assert profile.safety_acknowledged is True
     assert profile.service_areas == "The Greens, The Views"
+    assert profile.has_vehicle is True
+    assert profile.vehicle_description == "SUV"
+    assert str(profile.capacity_kg) == "80.00"
     assert profile.availability_notes == "Available on weekends."
+    assert profile.safety_acknowledged is False
     assert profile.can_receive_assignments is True
 
 
@@ -510,28 +464,23 @@ def test_approved_volunteer_can_acknowledge_safety_and_activate(
     (
         "approval_status",
         "active",
-        "safety_acknowledged",
     ),
     [
         (
             VolunteerApprovalStatus.PENDING,
             False,
-            False,
         ),
         (
             VolunteerApprovalStatus.APPROVED,
-            False,
-            True,
-        ),
-        (
-            VolunteerApprovalStatus.APPROVED,
-            True,
             False,
         ),
         (
             VolunteerApprovalStatus.REJECTED,
             False,
-            False,
+        ),
+        (
+            VolunteerApprovalStatus.REJECTED,
+            True,
         ),
     ],
 )
@@ -541,19 +490,12 @@ def test_ineligible_volunteer_cannot_receive_assignment(
     resident,
     approval_status,
     active,
-    safety_acknowledged,
 ):
     profile = create_volunteer_profile(
-        email=(
-            "ineligible-"
-            f"{approval_status}-"
-            f"{int(active)}-"
-            f"{int(safety_acknowledged)}"
-            "@example.com"
-        ),
+        email=(f"ineligible-{approval_status}-{int(active)}@example.com"),
         approval_status=approval_status,
         active=active,
-        safety_acknowledged=safety_acknowledged,
+        safety_acknowledged=False,
     )
     collection_request = create_approved_request(
         requester=resident,
@@ -581,23 +523,28 @@ def test_ineligible_volunteer_cannot_receive_assignment(
 
     collection_request.refresh_from_db()
 
-    assert (
-        collection_request.status
-        == RequestStatus.APPROVED
-    )
+    assert collection_request.status == RequestStatus.APPROVED
 
 
 @pytest.mark.django_db
-def test_eligible_volunteer_can_receive_assignment(
+@pytest.mark.parametrize(
+    "safety_acknowledged",
+    [
+        False,
+        True,
+    ],
+)
+def test_approved_active_volunteer_can_receive_assignment(
     api_client,
     operations_admin,
     resident,
+    safety_acknowledged,
 ):
     profile = create_volunteer_profile(
-        email="eligible-volunteer@example.com",
+        email=(f"eligible-volunteer-{int(safety_acknowledged)}@example.com"),
         approval_status=VolunteerApprovalStatus.APPROVED,
         active=True,
-        safety_acknowledged=True,
+        safety_acknowledged=safety_acknowledged,
     )
     collection_request = create_approved_request(
         requester=resident,
@@ -629,7 +576,4 @@ def test_eligible_volunteer_can_receive_assignment(
 
     collection_request.refresh_from_db()
 
-    assert (
-        collection_request.status
-        == RequestStatus.ASSIGNED
-    )
+    assert collection_request.status == RequestStatus.SCHEDULED

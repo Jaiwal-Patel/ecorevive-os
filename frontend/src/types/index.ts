@@ -12,6 +12,13 @@ export type VolunteerApprovalStatus =
   | 'approved'
   | 'rejected'
 
+export type AssignmentStatus =
+  | 'proposed'
+  | 'accepted'
+  | 'declined'
+  | 'completed'
+  | 'cancelled'
+
 export interface User {
   id: string
   email: string
@@ -184,13 +191,33 @@ export interface PickupAssignment {
   id: string
   request: string
   request_reference: string
+  request_status: string
+  request_area: string
+  request_city: string
+  request_address: string
+  request_access_instructions: string
+
   volunteer: string
   volunteer_name: string
+  volunteer_email: string
+
   scheduled_for: string
-  status: string
+  status: AssignmentStatus
+  status_label: string
   instructions: string
   assigned_by: string
+
+  accepted_at: string | null
+  declined_at: string | null
+  decline_reason: string
+
+  is_awaiting_response: boolean
+  can_be_accepted: boolean
+  can_be_declined: boolean
+  can_be_completed: boolean
+
   created_at: string
+  updated_at: string
 }
 
 export interface HandoverRequestSummary {
