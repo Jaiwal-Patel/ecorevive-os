@@ -20,6 +20,12 @@ from rest_framework.serializers import ValidationError
 from accounts.models import UserRole
 from audit.services import record_event
 from common.permissions import IsOperationalAdmin
+from notifications.dispatch import (
+    PICKUP_ASSIGNMENT_CANCELLED,
+    VOLUNTEER_APPLICATION_RECEIVED,
+    queue_pickup_assignment_notification,
+    queue_volunteer_application_notification,
+)
 
 from .models import (
     AssignmentStatus,
@@ -232,7 +238,12 @@ class VolunteerProfileViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         if self.request.user.role in ADMIN_ROLES:
-            serializer.save()
+            profile = serializer.save()
+
+            queue_volunteer_application_notification(
+                profile.id,
+                VOLUNTEER_APPLICATION_RECEIVED,
+            )
             return
 
         if self.request.user.role != UserRole.VOLUNTEER:
@@ -245,8 +256,13 @@ class VolunteerProfileViewSet(viewsets.ModelViewSet):
                 {"user": ("A volunteer profile already exists for this account.")}
             )
 
-        serializer.save(
+        profile = serializer.save(
             user=self.request.user,
+        )
+
+        queue_volunteer_application_notification(
+            profile.id,
+            VOLUNTEER_APPLICATION_RECEIVED,
         )
 
     @action(
@@ -568,6 +584,74 @@ class PickupAssignmentViewSet(viewsets.ModelViewSet):
             raise_exception=True,
         )
         assignment = serializer.save()
+
+        return Response(
+            PickupAssignmentSerializer(
+                assignment,
+                context=self.get_serializer_context(),
+            ).data,
+            status=status.HTTP_200_OK,
+        )
+
+    @action(
+        detail=True,
+        methods=["post"],
+        permission_classes=[IsOperationalAdmin],
+        url_path="cancel",
+    )
+    @transaction.atomic
+    def cancel(self, request, pk=None):
+        assignment = self.get_object()
+
+        if assignment.status == AssignmentStatus.COMPLETED:
+            raise ValidationError({"status": ("A completed assignment cannot be cancelled.")})
+
+        if assignment.status == AssignmentStatus.CANCELLED:
+            raise ValidationError({"status": ("This assignment is already cancelled.")})
+
+        cancellation_note = request.data.get(
+            "note",
+            "",
+        ).strip()
+        previous_status = assignment.status
+
+        assignment.status = AssignmentStatus.CANCELLED
+        assignment.save(
+            update_fields=[
+                "status",
+                "updated_at",
+            ],
+        )
+
+        record_event(
+            actor=request.user,
+            event_type="pickup.assignment_cancelled",
+            summary=(f"Cancelled pickup assignment for {assignment.request.public_reference}"),
+            object_type="PickupAssignment",
+            object_id=assignment.id,
+            metadata={
+                "request_id": str(
+                    assignment.request_id,
+                ),
+                "request_reference": (assignment.request.public_reference),
+                "volunteer_profile_id": str(
+                    assignment.volunteer_id,
+                ),
+                "volunteer_user_id": str(
+                    assignment.volunteer.user_id,
+                ),
+                "previous_status": previous_status,
+                "cancellation_note": cancellation_note,
+            },
+        )
+
+        queue_pickup_assignment_notification(
+            assignment.id,
+            PICKUP_ASSIGNMENT_CANCELLED,
+            event_note=cancellation_note,
+        )
+
+        assignment.refresh_from_db()
 
         return Response(
             PickupAssignmentSerializer(
