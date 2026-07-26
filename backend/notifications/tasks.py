@@ -453,3 +453,11 @@ def send_request_status_notification(
         "request_reference": (request_obj.public_reference),
         "email_status": email_log.status,
     }
+
+
+from .assignment_tasks import (  # noqa: E402, F401
+    send_pickup_assignment_notification,
+)
+from .volunteer_tasks import (  # noqa: E402, F401
+    send_volunteer_application_notification,
+)

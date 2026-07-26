@@ -4,6 +4,16 @@ from rest_framework import serializers
 
 from accounts.models import UserRole
 from audit.services import record_event
+from notifications.dispatch import (
+    PICKUP_ASSIGNMENT_ACCEPTED,
+    PICKUP_ASSIGNMENT_DECLINED,
+    PICKUP_ASSIGNMENT_PROPOSED,
+    PICKUP_ASSIGNMENT_RESCHEDULED,
+    VOLUNTEER_APPLICATION_APPROVED,
+    VOLUNTEER_APPLICATION_REJECTED,
+    queue_pickup_assignment_notification,
+    queue_volunteer_application_notification,
+)
 
 from .models import (
     AssignmentStatus,
@@ -150,11 +160,7 @@ class CollectionRequestSerializer(serializers.ModelSerializer):
 
         if not consent:
             raise serializers.ValidationError(
-                {
-                    "consent_to_data_processing": (
-                        "Consent is required to coordinate a collection."
-                    )
-                }
+                {"consent_to_data_processing": ("Consent is required to coordinate a collection.")}
             )
 
         return attrs
@@ -189,10 +195,7 @@ class CollectionRequestSerializer(serializers.ModelSerializer):
             validated_data,
         )
 
-        if (
-            items_data is not None
-            and instance.status == RequestStatus.DRAFT
-        ):
+        if items_data is not None and instance.status == RequestStatus.DRAFT:
             instance.items.all().delete()
 
             for item in items_data:
@@ -272,20 +275,14 @@ class VolunteerProfileSerializer(serializers.ModelSerializer):
 
     def validate_user(self, user):
         if user.role != UserRole.VOLUNTEER:
-            raise serializers.ValidationError(
-                "Selected user must have the Volunteer role."
-            )
+            raise serializers.ValidationError("Selected user must have the Volunteer role.")
 
         return user
 
     def validate(self, attrs):
         instance = self.instance
 
-        approval_status = (
-            instance.approval_status
-            if instance
-            else VolunteerApprovalStatus.PENDING
-        )
+        approval_status = instance.approval_status if instance else VolunteerApprovalStatus.PENDING
 
         active = attrs.get(
             "active",
@@ -296,16 +293,11 @@ class VolunteerProfileSerializer(serializers.ModelSerializer):
             ),
         )
 
-        if (
-            active
-            and approval_status
-            != VolunteerApprovalStatus.APPROVED
-        ):
+        if active and approval_status != VolunteerApprovalStatus.APPROVED:
             raise serializers.ValidationError(
                 {
                     "active": (
-                        "A volunteer cannot be activated until the "
-                        "application has been approved."
+                        "A volunteer cannot be activated until the application has been approved."
                     )
                 }
             )
@@ -341,30 +333,14 @@ class VolunteerReviewSerializer(serializers.Serializer):
             "",
         ).strip()
 
-        if (
-            decision == VolunteerApprovalStatus.REJECTED
-            and not review_note
-        ):
+        if decision == VolunteerApprovalStatus.REJECTED and not review_note:
             raise serializers.ValidationError(
-                {
-                    "review_note": (
-                        "A reason is required when rejecting a "
-                        "volunteer application."
-                    )
-                }
+                {"review_note": ("A reason is required when rejecting a volunteer application.")}
             )
 
-        if (
-            instance
-            and instance.approval_status == decision
-        ):
+        if instance and instance.approval_status == decision:
             raise serializers.ValidationError(
-                {
-                    "decision": (
-                        "This volunteer already has the selected "
-                        "approval status."
-                    )
-                }
+                {"decision": ("This volunteer already has the selected approval status.")}
             )
 
         attrs["review_note"] = review_note
@@ -386,9 +362,7 @@ class VolunteerReviewSerializer(serializers.Serializer):
         instance.reviewed_by = actor
         instance.reviewed_at = timezone.now()
         instance.review_note = review_note
-        instance.active = (
-            decision == VolunteerApprovalStatus.APPROVED
-        )
+        instance.active = decision == VolunteerApprovalStatus.APPROVED
 
         instance.save(
             update_fields=[
@@ -421,12 +395,21 @@ class VolunteerReviewSerializer(serializers.Serializer):
             },
         )
 
+        event_type = (
+            VOLUNTEER_APPLICATION_APPROVED
+            if decision == VolunteerApprovalStatus.APPROVED
+            else VOLUNTEER_APPLICATION_REJECTED
+        )
+
+        queue_volunteer_application_notification(
+            instance.id,
+            event_type,
+        )
+
         return instance
 
     def create(self, validated_data):
-        raise NotImplementedError(
-            "Volunteer reviews update an existing volunteer profile."
-        )
+        raise NotImplementedError("Volunteer reviews update an existing volunteer profile.")
 
 
 class PickupAssignmentSerializer(serializers.ModelSerializer):
@@ -561,38 +544,22 @@ class PickupAssignmentSerializer(serializers.ModelSerializer):
                 RequestStatus.ASSIGNED,
             }:
                 raise serializers.ValidationError(
-                    {
-                        "request": (
-                            "Only a scheduled request can be assigned "
-                            "to a volunteer."
-                        )
-                    }
+                    {"request": ("Only a scheduled request can be assigned to a volunteer.")}
                 )
 
             if PickupAssignment.objects.filter(
                 request=request_obj,
             ).exists():
                 raise serializers.ValidationError(
-                    {
-                        "request": (
-                            "This collection request already has a "
-                            "pickup assignment."
-                        )
-                    }
+                    {"request": ("This collection request already has a pickup assignment.")}
                 )
 
-        if (
-            instance is not None
-            and instance.status
-            in {
-                AssignmentStatus.ACCEPTED,
-                AssignmentStatus.COMPLETED,
-            }
-        ):
+        if instance is not None and instance.status in {
+            AssignmentStatus.ACCEPTED,
+            AssignmentStatus.COMPLETED,
+        }:
             volunteer_changed = (
-                "volunteer" in attrs
-                and attrs["volunteer"].id
-                != instance.volunteer_id
+                "volunteer" in attrs and attrs["volunteer"].id != instance.volunteer_id
             )
 
             if volunteer_changed:
@@ -627,20 +594,17 @@ class PickupAssignmentSerializer(serializers.ModelSerializer):
             object_id=assignment.id,
             metadata={
                 "request_id": str(assignment.request_id),
-                "request_reference": (
-                    assignment.request.public_reference
-                ),
-                "volunteer_profile_id": str(
-                    assignment.volunteer_id
-                ),
-                "volunteer_user_id": str(
-                    assignment.volunteer.user_id
-                ),
-                "scheduled_for": (
-                    assignment.scheduled_for.isoformat()
-                ),
+                "request_reference": (assignment.request.public_reference),
+                "volunteer_profile_id": str(assignment.volunteer_id),
+                "volunteer_user_id": str(assignment.volunteer.user_id),
+                "scheduled_for": (assignment.scheduled_for.isoformat()),
                 "status": assignment.status,
             },
+        )
+
+        queue_pickup_assignment_notification(
+            assignment.id,
+            PICKUP_ASSIGNMENT_PROPOSED,
         )
 
         return assignment
@@ -654,26 +618,17 @@ class PickupAssignmentSerializer(serializers.ModelSerializer):
 
         volunteer_changed = (
             "volunteer" in validated_data
-            and validated_data["volunteer"].id
-            != instance.volunteer_id
+            and validated_data["volunteer"].id != instance.volunteer_id
         )
         schedule_changed = (
             "scheduled_for" in validated_data
-            and validated_data["scheduled_for"]
-            != instance.scheduled_for
+            and validated_data["scheduled_for"] != instance.scheduled_for
         )
 
-        reset_for_response = (
-            instance.status
-            in {
-                AssignmentStatus.DECLINED,
-                AssignmentStatus.CANCELLED,
-            }
-            and (
-                volunteer_changed
-                or schedule_changed
-            )
-        )
+        reset_for_response = instance.status in {
+            AssignmentStatus.DECLINED,
+            AssignmentStatus.CANCELLED,
+        } and (volunteer_changed or schedule_changed)
 
         if reset_for_response:
             validated_data["status"] = AssignmentStatus.PROPOSED
@@ -689,34 +644,38 @@ class PickupAssignmentSerializer(serializers.ModelSerializer):
         record_event(
             actor=actor,
             event_type="pickup.assignment_updated",
-            summary=(
-                f"Pickup assignment for "
-                f"{instance.request.public_reference} was updated"
-            ),
+            summary=(f"Pickup assignment for {instance.request.public_reference} was updated"),
             object_type="PickupAssignment",
             object_id=instance.id,
             metadata={
                 "request_id": str(instance.request_id),
-                "request_reference": (
-                    instance.request.public_reference
-                ),
-                "previous_volunteer_id": str(
-                    previous_volunteer_id
-                ),
-                "volunteer_profile_id": str(
-                    instance.volunteer_id
-                ),
-                "previous_scheduled_for": (
-                    previous_scheduled_for.isoformat()
-                ),
-                "scheduled_for": (
-                    instance.scheduled_for.isoformat()
-                ),
+                "request_reference": (instance.request.public_reference),
+                "previous_volunteer_id": str(previous_volunteer_id),
+                "volunteer_profile_id": str(instance.volunteer_id),
+                "previous_scheduled_for": (previous_scheduled_for.isoformat()),
+                "scheduled_for": (instance.scheduled_for.isoformat()),
                 "previous_status": previous_status,
                 "status": instance.status,
                 "reset_for_response": reset_for_response,
             },
         )
+
+        if reset_for_response or volunteer_changed:
+            queue_pickup_assignment_notification(
+                instance.id,
+                PICKUP_ASSIGNMENT_PROPOSED,
+            )
+        elif schedule_changed:
+            queue_pickup_assignment_notification(
+                instance.id,
+                PICKUP_ASSIGNMENT_RESCHEDULED,
+                previous_scheduled_for=(
+                    previous_scheduled_for.isoformat() if previous_scheduled_for else ""
+                ),
+                expected_scheduled_for=(
+                    instance.scheduled_for.isoformat() if instance.scheduled_for else ""
+                ),
+            )
 
         return instance
 
@@ -750,18 +709,11 @@ class PickupAssignmentDecisionSerializer(serializers.Serializer):
         ).strip()
 
         if assignment is None:
-            raise serializers.ValidationError(
-                "An assignment is required."
-            )
+            raise serializers.ValidationError("An assignment is required.")
 
         if assignment.status != AssignmentStatus.PROPOSED:
             raise serializers.ValidationError(
-                {
-                    "decision": (
-                        "This assignment is no longer awaiting a "
-                        "volunteer response."
-                    )
-                }
+                {"decision": ("This assignment is no longer awaiting a volunteer response.")}
             )
 
         if (
@@ -769,25 +721,12 @@ class PickupAssignmentDecisionSerializer(serializers.Serializer):
             and not assignment.volunteer.can_receive_assignments
         ):
             raise serializers.ValidationError(
-                {
-                    "decision": (
-                        "This volunteer is no longer eligible to "
-                        "accept assignments."
-                    )
-                }
+                {"decision": ("This volunteer is no longer eligible to accept assignments.")}
             )
 
-        if (
-            decision == AssignmentStatus.DECLINED
-            and not decline_reason
-        ):
+        if decision == AssignmentStatus.DECLINED and not decline_reason:
             raise serializers.ValidationError(
-                {
-                    "decline_reason": (
-                        "A reason is required when declining an "
-                        "assignment."
-                    )
-                }
+                {"decline_reason": ("A reason is required when declining an assignment.")}
             )
 
         attrs["decline_reason"] = decline_reason
@@ -845,26 +784,29 @@ class PickupAssignmentDecisionSerializer(serializers.Serializer):
             object_id=instance.id,
             metadata={
                 "request_id": str(instance.request_id),
-                "request_reference": (
-                    instance.request.public_reference
-                ),
-                "volunteer_profile_id": str(
-                    instance.volunteer_id
-                ),
-                "volunteer_user_id": str(
-                    instance.volunteer.user_id
-                ),
+                "request_reference": (instance.request.public_reference),
+                "volunteer_profile_id": str(instance.volunteer_id),
+                "volunteer_user_id": str(instance.volunteer.user_id),
                 "decision": decision,
                 "decline_reason": decline_reason,
             },
         )
 
+        event_type = (
+            PICKUP_ASSIGNMENT_ACCEPTED
+            if decision == AssignmentStatus.ACCEPTED
+            else PICKUP_ASSIGNMENT_DECLINED
+        )
+
+        queue_pickup_assignment_notification(
+            instance.id,
+            event_type,
+        )
+
         return instance
 
     def create(self, validated_data):
-        raise NotImplementedError(
-            "Assignment decisions update an existing assignment."
-        )
+        raise NotImplementedError("Assignment decisions update an existing assignment.")
 
 
 class HandoverRequestSerializer(serializers.ModelSerializer):
