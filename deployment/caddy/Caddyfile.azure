@@ -6,13 +6,20 @@
     file_server
   }
 
+  handle /api/* {
+    reverse_proxy backend:8000
+  }
+
+  handle /admin/* {
+    reverse_proxy backend:8000
+  }
+
+  handle /static/* {
+    reverse_proxy backend:8000
+  }
+
   handle {
-    reverse_proxy backend:8000 {
-      header_up X-Real-IP {remote_host}
-      header_up X-Forwarded-For {remote_host}
-      header_up X-Forwarded-Proto {scheme}
-      header_up Host {host}
-    }
+    reverse_proxy frontend:80
   }
 
   header {

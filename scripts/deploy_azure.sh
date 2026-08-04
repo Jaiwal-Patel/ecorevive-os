@@ -50,7 +50,7 @@ if [[ ! -f "${COMPOSE_FILE}" ]]; then
 fi
 
 if grep -Eq \
-  'CHANGE_ME|YOUR_AZURE|YOUR_STATIC|YOUR_' \
+  '^[[:space:]]*[A-Za-z_][A-Za-z0-9_]*=.*(CHANGE_ME|YOUR_AZURE|YOUR_STATIC|YOUR_)' \
   "${ENV_FILE}"; then
   fail \
     "Azure placeholders remain in ${ENV_FILE}. " \
