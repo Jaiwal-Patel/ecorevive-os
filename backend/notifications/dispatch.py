@@ -13,10 +13,23 @@ PICKUP_ASSIGNMENT_RESCHEDULED = "pickup_assignment_rescheduled"
 PICKUP_ASSIGNMENT_CANCELLED = "pickup_assignment_cancelled"
 
 
+VOLUNTEER_EMAIL_EVENTS = frozenset(
+    {
+        VOLUNTEER_APPLICATION_APPROVED,
+        VOLUNTEER_APPLICATION_REJECTED,
+    }
+)
+
+
 def queue_volunteer_application_notification(
     profile_id,
     event_type: str,
 ) -> None:
+    """Queue only approved and rejected volunteer-application emails."""
+
+    if event_type not in VOLUNTEER_EMAIL_EVENTS:
+        return
+
     from .volunteer_tasks import (
         send_volunteer_application_notification,
     )
@@ -34,10 +47,19 @@ def queue_pickup_assignment_notification(
     assignment_id,
     event_type: str,
     *,
+    initial_assignment: bool = False,
     previous_scheduled_for: str = "",
     expected_scheduled_for: str = "",
     event_note: str = "",
 ) -> None:
+    """Queue email only for the original creation of an assignment."""
+
+    if (
+        event_type != PICKUP_ASSIGNMENT_PROPOSED
+        or not initial_assignment
+    ):
+        return
+
     from .assignment_tasks import (
         send_pickup_assignment_notification,
     )
