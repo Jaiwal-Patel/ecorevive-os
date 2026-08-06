@@ -605,6 +605,7 @@ class PickupAssignmentSerializer(serializers.ModelSerializer):
         queue_pickup_assignment_notification(
             assignment.id,
             PICKUP_ASSIGNMENT_PROPOSED,
+            initial_assignment=True,
         )
 
         return assignment
