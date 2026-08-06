@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import timedelta
 from unittest.mock import patch
 
 import pytest
@@ -9,11 +9,8 @@ from rest_framework import status
 
 from accounts.models import User, UserRole
 from notifications.assignment_tasks import (
-    PICKUP_ASSIGNMENT_ACCEPTED,
-    PICKUP_ASSIGNMENT_CANCELLED,
     PICKUP_ASSIGNMENT_DECLINED,
     PICKUP_ASSIGNMENT_PROPOSED,
-    PICKUP_ASSIGNMENT_RESCHEDULED,
     send_pickup_assignment_notification,
 )
 from notifications.dispatch import (
@@ -136,9 +133,92 @@ def create_assignment(
 
     return assignment
 
+@pytest.mark.django_db
+def test_request_submission_queues_email(
+    api_client,
+    resident,
+    django_capture_on_commit_callbacks,
+):
+    request_obj = create_collection_request(
+        requester=resident,
+        request_status=RequestStatus.DRAFT,
+    )
+
+    api_client.force_authenticate(
+        resident,
+    )
+
+    with patch(
+        "notifications.tasks.send_request_status_notification.delay",
+    ) as task_delay:
+        with django_capture_on_commit_callbacks(
+            execute=True,
+        ):
+            response = api_client.post(
+                f"/api/collection-requests/{request_obj.id}/submit/",
+                {},
+                format="json",
+            )
+
+    assert response.status_code == status.HTTP_200_OK
+
+    task_delay.assert_called_once_with(
+        str(request_obj.id),
+        RequestStatus.DRAFT,
+        RequestStatus.SUBMITTED,
+    )
+
 
 @pytest.mark.django_db
-def test_volunteer_profile_creation_queues_received_email(
+def test_under_review_and_approval_do_not_queue_email(
+    api_client,
+    operations_admin,
+    resident,
+    django_capture_on_commit_callbacks,
+):
+    request_obj = create_collection_request(
+        requester=resident,
+        request_status=RequestStatus.SUBMITTED,
+    )
+
+    api_client.force_authenticate(
+        operations_admin,
+    )
+
+    with patch(
+        "notifications.tasks.send_request_status_notification.delay",
+    ) as task_delay:
+        with django_capture_on_commit_callbacks(
+            execute=True,
+        ):
+            under_review_response = api_client.post(
+                f"/api/collection-requests/{request_obj.id}/transition/",
+                {
+                    "to_status": RequestStatus.UNDER_REVIEW,
+                },
+                format="json",
+            )
+
+            approved_response = api_client.post(
+                f"/api/collection-requests/{request_obj.id}/transition/",
+                {
+                    "to_status": RequestStatus.APPROVED,
+                },
+                format="json",
+            )
+
+    assert under_review_response.status_code == status.HTTP_200_OK
+    assert approved_response.status_code == status.HTTP_200_OK
+
+    request_obj.refresh_from_db()
+
+    assert request_obj.status == RequestStatus.APPROVED
+    task_delay.assert_not_called()
+
+
+
+@pytest.mark.django_db
+def test_volunteer_profile_creation_does_not_queue_received_email(
     api_client,
     volunteer_user,
     django_capture_on_commit_callbacks,
@@ -148,7 +228,8 @@ def test_volunteer_profile_creation_queues_received_email(
     )
 
     with patch(
-        "notifications.volunteer_tasks.send_volunteer_application_notification.delay",
+        "notifications.volunteer_tasks."
+        "send_volunteer_application_notification.delay",
     ) as task_delay:
         with django_capture_on_commit_callbacks(
             execute=True,
@@ -166,14 +247,12 @@ def test_volunteer_profile_creation_queues_received_email(
 
     assert response.status_code == status.HTTP_201_CREATED
 
-    profile = VolunteerProfile.objects.get(
+    assert VolunteerProfile.objects.filter(
         user=volunteer_user,
-    )
+    ).exists()
 
-    task_delay.assert_called_once_with(
-        str(profile.id),
-        VOLUNTEER_APPLICATION_RECEIVED,
-    )
+    task_delay.assert_not_called()
+
 
 
 @pytest.mark.django_db
@@ -304,7 +383,7 @@ def test_assignment_creation_queues_proposed_email(
 
 
 @pytest.mark.django_db
-def test_assignment_acceptance_queues_accepted_email(
+def test_assignment_acceptance_does_not_queue_email(
     api_client,
     operations_admin,
     resident,
@@ -325,34 +404,34 @@ def test_assignment_acceptance_queues_accepted_email(
 
     with (
         patch(
-            "notifications.assignment_tasks.send_pickup_assignment_notification.delay",
+            "notifications.assignment_tasks."
+            "send_pickup_assignment_notification.delay",
         ) as assignment_delay,
         patch(
-            "notifications.tasks.send_request_status_notification.delay",
+            "notifications.tasks."
+            "send_request_status_notification.delay",
         ),
     ):
         with django_capture_on_commit_callbacks(
             execute=True,
         ):
             response = api_client.post(
-                (f"/api/pickup-assignments/{assignment.id}/accept/"),
+                f"/api/pickup-assignments/{assignment.id}/accept/",
                 {},
                 format="json",
             )
 
     assert response.status_code == status.HTTP_200_OK
 
-    assignment_delay.assert_called_once_with(
-        str(assignment.id),
-        PICKUP_ASSIGNMENT_ACCEPTED,
-        "",
-        "",
-        "",
-    )
+    assignment.refresh_from_db()
+
+    assert assignment.status == AssignmentStatus.ACCEPTED
+    assignment_delay.assert_not_called()
+
 
 
 @pytest.mark.django_db
-def test_assignment_decline_queues_declined_email(
+def test_assignment_decline_does_not_queue_email(
     api_client,
     operations_admin,
     resident,
@@ -372,32 +451,31 @@ def test_assignment_decline_queues_declined_email(
     )
 
     with patch(
-        "notifications.assignment_tasks.send_pickup_assignment_notification.delay",
+        "notifications.assignment_tasks."
+        "send_pickup_assignment_notification.delay",
     ) as assignment_delay:
         with django_capture_on_commit_callbacks(
             execute=True,
         ):
             response = api_client.post(
-                (f"/api/pickup-assignments/{assignment.id}/decline/"),
+                f"/api/pickup-assignments/{assignment.id}/decline/",
                 {
-                    "decline_reason": ("Transport is unavailable."),
+                    "decline_reason": "Transport is unavailable.",
                 },
                 format="json",
             )
 
     assert response.status_code == status.HTTP_200_OK
 
-    assignment_delay.assert_called_once_with(
-        str(assignment.id),
-        PICKUP_ASSIGNMENT_DECLINED,
-        "",
-        "",
-        "",
-    )
+    assignment.refresh_from_db()
+
+    assert assignment.status == AssignmentStatus.DECLINED
+    assignment_delay.assert_not_called()
+
 
 
 @pytest.mark.django_db
-def test_assignment_reschedule_queues_rescheduled_email(
+def test_assignment_reschedule_does_not_queue_email(
     api_client,
     operations_admin,
     resident,
@@ -411,23 +489,25 @@ def test_assignment_reschedule_queues_rescheduled_email(
         volunteer=volunteer,
         assigned_by=operations_admin,
     )
-    previous_scheduled_for = assignment.scheduled_for
-    new_scheduled_for = previous_scheduled_for + timedelta(days=2)
+    new_scheduled_for = assignment.scheduled_for + timedelta(
+        days=2,
+    )
 
     api_client.force_authenticate(
         operations_admin,
     )
 
     with patch(
-        "notifications.assignment_tasks.send_pickup_assignment_notification.delay",
+        "notifications.assignment_tasks."
+        "send_pickup_assignment_notification.delay",
     ) as assignment_delay:
         with django_capture_on_commit_callbacks(
             execute=True,
         ):
             response = api_client.patch(
-                (f"/api/pickup-assignments/{assignment.id}/"),
+                f"/api/pickup-assignments/{assignment.id}/",
                 {
-                    "scheduled_for": (new_scheduled_for.isoformat()),
+                    "scheduled_for": new_scheduled_for.isoformat(),
                 },
                 format="json",
             )
@@ -436,22 +516,13 @@ def test_assignment_reschedule_queues_rescheduled_email(
 
     assignment.refresh_from_db()
 
-    args = assignment_delay.call_args.args
+    assert assignment.scheduled_for == new_scheduled_for
+    assignment_delay.assert_not_called()
 
-    assert args[0] == str(assignment.id)
-    assert args[1] == PICKUP_ASSIGNMENT_RESCHEDULED
-    assert args[2] == previous_scheduled_for.isoformat()
-    assert (
-        datetime.fromisoformat(
-            args[3],
-        )
-        == assignment.scheduled_for
-    )
-    assert args[4] == ""
 
 
 @pytest.mark.django_db
-def test_assignment_cancellation_queues_cancelled_email(
+def test_assignment_cancellation_does_not_queue_email(
     api_client,
     operations_admin,
     resident,
@@ -471,13 +542,14 @@ def test_assignment_cancellation_queues_cancelled_email(
     )
 
     with patch(
-        "notifications.assignment_tasks.send_pickup_assignment_notification.delay",
+        "notifications.assignment_tasks."
+        "send_pickup_assignment_notification.delay",
     ) as assignment_delay:
         with django_capture_on_commit_callbacks(
             execute=True,
         ):
             response = api_client.post(
-                (f"/api/pickup-assignments/{assignment.id}/cancel/"),
+                f"/api/pickup-assignments/{assignment.id}/cancel/",
                 {
                     "note": "Resident requested cancellation.",
                 },
@@ -489,14 +561,117 @@ def test_assignment_cancellation_queues_cancelled_email(
     assignment.refresh_from_db()
 
     assert assignment.status == AssignmentStatus.CANCELLED
+    assignment_delay.assert_not_called()
 
-    assignment_delay.assert_called_once_with(
-        str(assignment.id),
-        PICKUP_ASSIGNMENT_CANCELLED,
-        "",
-        "",
-        "Resident requested cancellation.",
+
+@pytest.mark.django_db
+def test_assignment_reassignment_does_not_queue_email(
+    api_client,
+    operations_admin,
+    resident,
+    django_capture_on_commit_callbacks,
+):
+    original_volunteer = create_volunteer_profile(
+        email="original-volunteer@example.com",
     )
+    replacement_volunteer = create_volunteer_profile(
+        email="replacement-volunteer@example.com",
+    )
+    assignment = create_assignment(
+        requester=resident,
+        volunteer=original_volunteer,
+        assigned_by=operations_admin,
+    )
+
+    api_client.force_authenticate(
+        operations_admin,
+    )
+
+    with patch(
+        "notifications.assignment_tasks."
+        "send_pickup_assignment_notification.delay",
+    ) as assignment_delay:
+        with django_capture_on_commit_callbacks(
+            execute=True,
+        ):
+            response = api_client.patch(
+                f"/api/pickup-assignments/{assignment.id}/",
+                {
+                    "volunteer": str(replacement_volunteer.id),
+                },
+                format="json",
+            )
+
+    assert response.status_code == status.HTTP_200_OK
+
+    assignment.refresh_from_db()
+
+    assert assignment.volunteer_id == replacement_volunteer.id
+    assignment_delay.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    ("assignment_status", "decline_reason"),
+    [
+        (
+            AssignmentStatus.DECLINED,
+            "Transport is unavailable.",
+        ),
+        (
+            AssignmentStatus.CANCELLED,
+            "",
+        ),
+    ],
+)
+@pytest.mark.django_db
+def test_assignment_reproposal_does_not_queue_email(
+    api_client,
+    operations_admin,
+    resident,
+    django_capture_on_commit_callbacks,
+    assignment_status,
+    decline_reason,
+):
+    volunteer = create_volunteer_profile(
+        email=f"{assignment_status}-reproposal@example.com",
+    )
+    assignment = create_assignment(
+        requester=resident,
+        volunteer=volunteer,
+        assigned_by=operations_admin,
+        assignment_status=assignment_status,
+        decline_reason=decline_reason,
+    )
+    new_scheduled_for = assignment.scheduled_for + timedelta(
+        days=1,
+    )
+
+    api_client.force_authenticate(
+        operations_admin,
+    )
+
+    with patch(
+        "notifications.assignment_tasks."
+        "send_pickup_assignment_notification.delay",
+    ) as assignment_delay:
+        with django_capture_on_commit_callbacks(
+            execute=True,
+        ):
+            response = api_client.patch(
+                f"/api/pickup-assignments/{assignment.id}/",
+                {
+                    "scheduled_for": new_scheduled_for.isoformat(),
+                },
+                format="json",
+            )
+
+    assert response.status_code == status.HTTP_200_OK
+
+    assignment.refresh_from_db()
+
+    assert assignment.status == AssignmentStatus.PROPOSED
+    assignment_delay.assert_not_called()
+
 
 
 @pytest.mark.django_db
@@ -505,10 +680,12 @@ def test_rolled_back_transaction_queues_no_notifications(
 ):
     with (
         patch(
-            "notifications.volunteer_tasks.send_volunteer_application_notification.delay",
+            "notifications.volunteer_tasks."
+            "send_volunteer_application_notification.delay",
         ) as volunteer_delay,
         patch(
-            "notifications.assignment_tasks.send_pickup_assignment_notification.delay",
+            "notifications.assignment_tasks."
+            "send_pickup_assignment_notification.delay",
         ) as assignment_delay,
     ):
         with django_capture_on_commit_callbacks(
@@ -521,13 +698,13 @@ def test_rolled_back_transaction_queues_no_notifications(
                 with transaction.atomic():
                     queue_volunteer_application_notification(
                         "volunteer-profile-id",
-                        VOLUNTEER_APPLICATION_RECEIVED,
+                        VOLUNTEER_APPLICATION_APPROVED,
                     )
                     queue_pickup_assignment_notification(
                         "pickup-assignment-id",
                         PICKUP_ASSIGNMENT_PROPOSED,
+                        initial_assignment=True,
                     )
-
                     raise RuntimeError(
                         "Force rollback",
                     )
@@ -535,6 +712,7 @@ def test_rolled_back_transaction_queues_no_notifications(
     assert callbacks == []
     volunteer_delay.assert_not_called()
     assignment_delay.assert_not_called()
+
 
 
 @pytest.mark.django_db
