@@ -13,7 +13,9 @@ from rest_framework.decorators import (
     action,
     api_view,
 )
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import (
+    AllowAny,
+)
 from rest_framework.response import Response
 
 from common.permissions import (
@@ -29,6 +31,7 @@ from .models import (
 from .serializers import (
     ChangePasswordSerializer,
     GovernanceIdentitySerializer,
+    LoginTokenSerializer,
     MeSerializer,
     RegisterSerializer,
     UserAdminSerializer,
@@ -39,37 +42,107 @@ from .services import (
 )
 
 
-class PurgeTestAccountSerializer(serializers.Serializer):
-    confirmation_email = serializers.EmailField()
+class PurgeTestAccountSerializer(
+    serializers.Serializer,
+):
+    confirmation_email = (
+        serializers.EmailField()
+    )
 
-    def validate_confirmation_email(self, value):
-        target_user = self.context["target_user"]
+    def validate_confirmation_email(
+        self,
+        value,
+    ):
+        target_user = self.context[
+            "target_user"
+        ]
 
-        if value.strip().lower() != target_user.email.lower():
+        if not target_user.email:
             raise serializers.ValidationError(
-                "Enter the account email exactly to confirm permanent "
+                "Accounts without an email "
+                "address cannot be permanently "
+                "purged through email "
+                "confirmation. Disable the "
+                "account instead."
+            )
+
+        if (
+            value.strip().lower()
+            != target_user.email.lower()
+        ):
+            raise serializers.ValidationError(
+                "Enter the account email "
+                "exactly to confirm permanent "
                 "deletion."
             )
 
         return value
 
 
-class RegisterView(generics.CreateAPIView):
+class RegisterView(
+    generics.CreateAPIView,
+):
     queryset = User.objects.all()
     serializer_class = RegisterSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [
+        AllowAny,
+    ]
+
+
+class LoginTokenView(
+    generics.GenericAPIView,
+):
+    serializer_class = (
+        LoginTokenSerializer
+    )
+    permission_classes = [
+        AllowAny,
+    ]
+
+    @extend_schema(
+        request=LoginTokenSerializer,
+        responses={
+            200: OpenApiTypes.OBJECT,
+        },
+    )
+    def post(
+        self,
+        request,
+        *args,
+        **kwargs,
+    ):
+        serializer = self.get_serializer(
+            data=request.data,
+        )
+        serializer.is_valid(
+            raise_exception=True,
+        )
+
+        return Response(
+            serializer.validated_data,
+            status=status.HTTP_200_OK,
+        )
 
 
 @extend_schema(
-    methods=["GET"],
+    methods=[
+        "GET",
+    ],
     responses=MeSerializer,
 )
 @extend_schema(
-    methods=["PATCH"],
+    methods=[
+        "PATCH",
+    ],
     request=MeSerializer,
     responses=MeSerializer,
 )
-@api_view(["GET", "PATCH"])
+@api_view(
+    [
+        "GET",
+        "PATCH",
+    ]
+)
 def me_view(request):
     if request.method == "GET":
         return Response(
@@ -99,13 +172,21 @@ def me_view(request):
         200: OpenApiTypes.OBJECT,
     },
 )
-@api_view(["POST"])
-def change_password_view(request):
-    serializer = ChangePasswordSerializer(
-        data=request.data,
-        context={
-            "request": request,
-        },
+@api_view(
+    [
+        "POST",
+    ]
+)
+def change_password_view(
+    request,
+):
+    serializer = (
+        ChangePasswordSerializer(
+            data=request.data,
+            context={
+                "request": request,
+            },
+        )
     )
     serializer.is_valid(
         raise_exception=True,
@@ -114,15 +195,24 @@ def change_password_view(request):
 
     return Response(
         {
-            "detail": "Password changed successfully.",
+            "detail": (
+                "Password changed "
+                "successfully."
+            ),
         }
     )
 
 
-class UserViewSet(viewsets.ModelViewSet):
+class UserViewSet(
+    viewsets.ModelViewSet,
+):
     queryset = User.objects.all()
-    serializer_class = UserAdminSerializer
-    permission_classes = [CanManageUsers]
+    serializer_class = (
+        UserAdminSerializer
+    )
+    permission_classes = [
+        CanManageUsers,
+    ]
     http_method_names = [
         "get",
         "post",
@@ -134,14 +224,21 @@ class UserViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         queryset = (
             User.objects.exclude(
-                role__in=PROTECTED_GOVERNANCE_ROLES,
+                role__in=(
+                    PROTECTED_GOVERNANCE_ROLES
+                ),
             )
             .exclude(
-                email__in=HIDDEN_SYSTEM_EMAILS,
+                email__in=(
+                    HIDDEN_SYSTEM_EMAILS
+                ),
             )
         )
 
-        if self.request.user.role == UserRole.FOUNDER_RECOVERY:
+        if (
+            self.request.user.role
+            == UserRole.FOUNDER_RECOVERY
+        ):
             return queryset.filter(
                 role__in={
                     UserRole.PRINCIPAL_ADMIN,
@@ -153,25 +250,35 @@ class UserViewSet(viewsets.ModelViewSet):
 
     @action(
         detail=True,
-        methods=["post"],
-        url_path="purge-test-account",
+        methods=[
+            "post",
+        ],
+        url_path=(
+            "purge-test-account"
+        ),
     )
     def purge_test_account_action(
         self,
         request,
         pk=None,
     ):
-        target_user = self.get_object()
+        target_user = (
+            self.get_object()
+        )
         actor = request.user
 
         if target_user == actor:
             return Response(
                 {
                     "detail": (
-                        "You cannot permanently purge your own account."
+                        "You cannot permanently "
+                        "purge your own account."
                     )
                 },
-                status=status.HTTP_400_BAD_REQUEST,
+                status=(
+                    status
+                    .HTTP_400_BAD_REQUEST
+                ),
             )
 
         protected_roles = {
@@ -181,32 +288,52 @@ class UserViewSet(viewsets.ModelViewSet):
             UserRole.OPERATIONS_ADMIN,
         }
 
-        if target_user.role in protected_roles:
+        if (
+            target_user.role
+            in protected_roles
+        ):
             return Response(
                 {
                     "detail": (
-                        "Founder and administrator accounts cannot be "
-                        "permanently purged."
+                        "Founder and "
+                        "administrator accounts "
+                        "cannot be permanently "
+                        "purged."
                     )
                 },
-                status=status.HTTP_400_BAD_REQUEST,
+                status=(
+                    status
+                    .HTTP_400_BAD_REQUEST
+                ),
             )
 
-        if target_user.email in HIDDEN_SYSTEM_EMAILS:
+        if (
+            target_user.email
+            in HIDDEN_SYSTEM_EMAILS
+        ):
             return Response(
                 {
                     "detail": (
-                        "System placeholder accounts cannot be purged."
+                        "System placeholder "
+                        "accounts cannot be "
+                        "purged."
                     )
                 },
-                status=status.HTTP_400_BAD_REQUEST,
+                status=(
+                    status
+                    .HTTP_400_BAD_REQUEST
+                ),
             )
 
-        serializer = PurgeTestAccountSerializer(
-            data=request.data,
-            context={
-                "target_user": target_user,
-            },
+        serializer = (
+            PurgeTestAccountSerializer(
+                data=request.data,
+                context={
+                    "target_user": (
+                        target_user
+                    ),
+                },
+            )
         )
         serializer.is_valid(
             raise_exception=True,
@@ -214,7 +341,9 @@ class UserViewSet(viewsets.ModelViewSet):
 
         try:
             result = purge_test_account(
-                target_user=target_user,
+                target_user=(
+                    target_user
+                ),
                 actor=actor,
             )
         except ValueError as exc:
@@ -222,14 +351,19 @@ class UserViewSet(viewsets.ModelViewSet):
                 {
                     "detail": str(exc),
                 },
-                status=status.HTTP_400_BAD_REQUEST,
+                status=(
+                    status
+                    .HTTP_400_BAD_REQUEST
+                ),
             )
 
         return Response(
             {
                 "detail": (
-                    "Test account and its unverified collection "
-                    "requests were permanently deleted."
+                    "Test account and its "
+                    "unverified collection "
+                    "requests were permanently "
+                    "deleted."
                 ),
                 **result,
             },
@@ -243,10 +377,16 @@ class GovernanceIdentityViewSet(
     viewsets.GenericViewSet,
 ):
     queryset = User.objects.filter(
-        role__in=PROTECTED_GOVERNANCE_ROLES,
+        role__in=(
+            PROTECTED_GOVERNANCE_ROLES
+        ),
     )
-    serializer_class = GovernanceIdentitySerializer
-    permission_classes = [IsGovernanceLeader]
+    serializer_class = (
+        GovernanceIdentitySerializer
+    )
+    permission_classes = [
+        IsGovernanceLeader,
+    ]
     http_method_names = [
         "get",
         "head",

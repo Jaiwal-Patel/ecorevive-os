@@ -11,6 +11,7 @@ from .models import (
     StatusTransition,
 )
 
+# Resident email is sent only when a collection request is submitted.
 REQUEST_EMAIL_STATUSES = frozenset(
     {
         RequestStatus.SUBMITTED,
@@ -74,7 +75,13 @@ def transition_request(
         },
     )
 
-    if to_status in REQUEST_EMAIL_STATUSES:
+    # Only queue a resident email when:
+    # 1. The transition is one of the explicitly permitted email events.
+    # 2. The resident actually supplied an email address.
+    if (
+        to_status in REQUEST_EMAIL_STATUSES
+        and request_obj.requester.email
+    ):
         transaction.on_commit(
             lambda: _queue_notification_safely(
                 str(request_obj.id),
