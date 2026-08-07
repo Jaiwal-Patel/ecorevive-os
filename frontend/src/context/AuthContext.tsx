@@ -20,20 +20,35 @@ interface RegisterPayload {
 interface AuthContextValue {
   user: User | null
   loading: boolean
-  login: (email: string, password: string) => Promise<void>
-  register: (payload: RegisterPayload) => Promise<void>
+  login: (
+    identifier: string,
+    password: string,
+  ) => Promise<void>
+  register: (
+    payload: RegisterPayload,
+  ) => Promise<void>
   logout: () => void
   refreshUser: () => Promise<void>
 }
 
-const AuthContext = createContext<AuthContextValue | undefined>(undefined)
+const AuthContext = createContext<
+  AuthContextValue | undefined
+>(undefined)
 
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null)
-  const [loading, setLoading] = useState(true)
+export function AuthProvider({
+  children,
+}: {
+  children: ReactNode
+}) {
+  const [user, setUser] =
+    useState<User | null>(null)
+  const [loading, setLoading] =
+    useState(true)
 
   const refreshUser = async () => {
-    const token = localStorage.getItem('ecorevive_access')
+    const token = localStorage.getItem(
+      'ecorevive_access',
+    )
 
     if (!token) {
       setUser(null)
@@ -42,11 +57,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     try {
-      const { data } = await api.get<User>('/auth/me/')
+      const { data } =
+        await api.get<User>(
+          '/auth/me/',
+        )
+
       setUser(data)
     } catch {
-      localStorage.removeItem('ecorevive_access')
-      localStorage.removeItem('ecorevive_refresh')
+      localStorage.removeItem(
+        'ecorevive_access',
+      )
+      localStorage.removeItem(
+        'ecorevive_refresh',
+      )
       setUser(null)
     } finally {
       setLoading(false)
@@ -54,34 +77,71 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   useEffect(() => {
-    // Authentication is restored once from browser storage on application start.
+    // Authentication is restored once from
+    // browser storage on application start.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void refreshUser()
   }, [])
 
-  const login = async (email: string, password: string) => {
+  const login = async (
+    identifier: string,
+    password: string,
+  ) => {
     const { data } = await api.post<{
       access: string
       refresh: string
-    }>('/auth/token/', {
-      email,
-      password,
-    })
+    }>(
+      '/auth/token/',
+      {
+        login: identifier.trim(),
+        password,
+      },
+    )
 
-    localStorage.setItem('ecorevive_access', data.access)
-    localStorage.setItem('ecorevive_refresh', data.refresh)
+    localStorage.setItem(
+      'ecorevive_access',
+      data.access,
+    )
+    localStorage.setItem(
+      'ecorevive_refresh',
+      data.refresh,
+    )
 
     await refreshUser()
   }
 
-  const register = async (payload: RegisterPayload) => {
-    await api.post('/auth/register/', payload)
-    await login(payload.email, payload.password)
+  const register = async (
+    payload: RegisterPayload,
+  ) => {
+    await api.post(
+      '/auth/register/',
+      {
+        ...payload,
+        email:
+          payload.email.trim()
+          || null,
+        phone_number:
+          payload.phone_number.trim(),
+      },
+    )
+
+    const identifier =
+      payload.email.trim()
+      || payload.phone_number.trim()
+
+    await login(
+      identifier,
+      payload.password,
+    )
   }
 
   const logout = () => {
-    localStorage.removeItem('ecorevive_access')
-    localStorage.removeItem('ecorevive_refresh')
+    localStorage.removeItem(
+      'ecorevive_access',
+    )
+    localStorage.removeItem(
+      'ecorevive_refresh',
+    )
     setUser(null)
   }
 
@@ -102,10 +162,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 }
 
 export function useAuth() {
-  const context = useContext(AuthContext)
+  const context =
+    useContext(AuthContext)
 
   if (!context) {
-    throw new Error('useAuth must be used inside AuthProvider')
+    throw new Error(
+      'useAuth must be used inside AuthProvider',
+    )
   }
 
   return context

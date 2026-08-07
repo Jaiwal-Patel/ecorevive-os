@@ -13,7 +13,9 @@ import { errorMessage } from '../api/client'
 import { Logo } from '../components/Logo'
 import { useAuth } from '../context/AuthContext'
 
-type AccountType = 'resident' | 'volunteer'
+type AccountType =
+  | 'resident'
+  | 'volunteer'
 
 interface RegistrationForm {
   email: string
@@ -40,14 +42,18 @@ function AuthFrame({
         <Logo />
 
         <div>
-          <span className="eyebrow">EcoRevive Dubai</span>
+          <span className="eyebrow">
+            EcoRevive Dubai
+          </span>
 
           <h1>
-            Community infrastructure for responsible e-waste action.
+            Community infrastructure for
+            responsible e-waste action.
           </h1>
 
           <p>
-            Coordinate every request from first contact through verified
+            Coordinate every request from
+            first contact through verified
             recycler handover.
           </p>
         </div>
@@ -68,25 +74,44 @@ export function LoginPage() {
   const { user, login } = useAuth()
   const navigate = useNavigate()
 
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [error, setError] = useState('')
-  const [busy, setBusy] = useState(false)
+  const [
+    identifier,
+    setIdentifier,
+  ] = useState('')
+
+  const [password, setPassword] =
+    useState('')
+  const [error, setError] =
+    useState('')
+  const [busy, setBusy] =
+    useState(false)
 
   if (user) {
-    return <Navigate to="/dashboard" replace />
+    return (
+      <Navigate
+        to="/dashboard"
+        replace
+      />
+    )
   }
 
-  const submit = async (event: FormEvent) => {
+  const submit = async (
+    event: FormEvent,
+  ) => {
     event.preventDefault()
     setBusy(true)
     setError('')
 
     try {
-      await login(email, password)
+      await login(
+        identifier,
+        password,
+      )
       navigate('/dashboard')
     } catch (err) {
-      setError(errorMessage(err))
+      setError(
+        errorMessage(err),
+      )
     } finally {
       setBusy(false)
     }
@@ -95,30 +120,46 @@ export function LoginPage() {
   return (
     <AuthFrame
       title="Welcome back"
-      subtitle="Sign in to your EcoRevive workspace."
+      subtitle={
+        'Sign in to your EcoRevive workspace.'
+      }
     >
-      <form onSubmit={submit} className="form-stack">
+      <form
+        onSubmit={submit}
+        className="form-stack"
+      >
         <label>
-          Email
-
+          Email or phone
           <input
-            type="email"
+            type="text"
             required
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            autoComplete="email"
+            value={identifier}
+            onChange={(event) =>
+              setIdentifier(
+                event.target.value,
+              )
+            }
+            autoComplete="username"
+            placeholder={
+              'Email address or phone number'
+            }
           />
         </label>
 
         <label>
           Password
-
           <input
             type="password"
             required
             value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            autoComplete="current-password"
+            onChange={(event) =>
+              setPassword(
+                event.target.value,
+              )
+            }
+            autoComplete={
+              'current-password'
+            }
           />
         </label>
 
@@ -133,7 +174,9 @@ export function LoginPage() {
           className="button"
           disabled={busy}
         >
-          {busy ? 'Signing in…' : 'Sign in'}
+          {busy
+            ? 'Signing in…'
+            : 'Sign in'}
         </button>
       </form>
 
@@ -148,25 +191,40 @@ export function LoginPage() {
 }
 
 export function RegisterPage() {
-  const { user, register } = useAuth()
+  const { user, register } =
+    useAuth()
   const navigate = useNavigate()
 
-  const [form, setForm] = useState<RegistrationForm>({
-    email: '',
-    full_name: '',
-    phone_number: '',
-    password: '',
-    account_type: 'resident',
-  })
+  const [form, setForm] =
+    useState<RegistrationForm>({
+      email: '',
+      full_name: '',
+      phone_number: '',
+      password: '',
+      account_type: 'resident',
+    })
 
-  const [error, setError] = useState('')
-  const [busy, setBusy] = useState(false)
+  const [error, setError] =
+    useState('')
+  const [busy, setBusy] =
+    useState(false)
 
   if (user) {
-    return <Navigate to="/dashboard" replace />
+    return (
+      <Navigate
+        to="/dashboard"
+        replace
+      />
+    )
   }
 
-  const submit = async (event: FormEvent) => {
+  const residentWithoutEmail =
+    form.account_type === 'resident'
+    && !form.email.trim()
+
+  const submit = async (
+    event: FormEvent,
+  ) => {
     event.preventDefault()
     setBusy(true)
     setError('')
@@ -175,12 +233,15 @@ export function RegisterPage() {
       await register(form)
 
       navigate(
-        form.account_type === 'volunteer'
+        form.account_type
+          === 'volunteer'
           ? '/dashboard'
           : '/requests/new',
       )
     } catch (err) {
-      setError(errorMessage(err))
+      setError(
+        errorMessage(err),
+      )
     } finally {
       setBusy(false)
     }
@@ -189,49 +250,62 @@ export function RegisterPage() {
   return (
     <AuthFrame
       title="Join EcoRevive"
-      subtitle="Create an account as a resident or volunteer."
+      subtitle={
+        'Create an account as a resident or volunteer.'
+      }
     >
-      <form onSubmit={submit} className="form-stack">
+      <form
+        onSubmit={submit}
+        className="form-stack"
+      >
         <label>
           I want to join as
-
           <select
             required
-            value={form.account_type}
+            value={
+              form.account_type
+            }
             onChange={(event) =>
               setForm({
                 ...form,
-                account_type: event.target.value as AccountType,
+                account_type:
+                  event.target
+                    .value as AccountType,
               })
             }
           >
             <option value="resident">
-              Resident requesting an e-waste collection
+              Resident requesting an
+              e-waste collection
             </option>
 
             <option value="volunteer">
-              Volunteer helping with collections
+              Volunteer helping with
+              collections
             </option>
           </select>
         </label>
 
-        {form.account_type === 'volunteer' && (
+        {form.account_type
+          === 'volunteer' && (
           <div className="alert">
-            Your volunteer registration will require administrator approval
-            before you can receive pickup assignments.
+            Your volunteer registration
+            will require administrator
+            approval before you can
+            receive pickup assignments.
           </div>
         )}
 
         <label>
           Full name
-
           <input
             required
             value={form.full_name}
             onChange={(event) =>
               setForm({
                 ...form,
-                full_name: event.target.value,
+                full_name:
+                  event.target.value,
               })
             }
             autoComplete="name"
@@ -239,42 +313,77 @@ export function RegisterPage() {
         </label>
 
         <label>
-          Email
+          {form.account_type
+            === 'resident'
+            ? 'Email (optional)'
+            : 'Email'}
 
           <input
             type="email"
-            required
+            required={
+              form.account_type
+              === 'volunteer'
+            }
             value={form.email}
             onChange={(event) =>
               setForm({
                 ...form,
-                email: event.target.value,
+                email:
+                  event.target.value,
               })
             }
             autoComplete="email"
           />
+
+          {form.account_type
+            === 'resident' && (
+            <small>
+              Optional. If you leave
+              this blank, use your
+              phone number to sign in.
+              Email notifications will
+              be disabled for your
+              account.
+            </small>
+          )}
         </label>
 
         <label>
-          WhatsApp / phone
+          {residentWithoutEmail
+            ? 'WhatsApp / phone (required)'
+            : 'WhatsApp / phone'}
 
           <input
             type="tel"
-            value={form.phone_number}
+            required={
+              residentWithoutEmail
+            }
+            value={
+              form.phone_number
+            }
             onChange={(event) =>
               setForm({
                 ...form,
-                phone_number: event.target.value,
+                phone_number:
+                  event.target.value,
               })
             }
             placeholder="+971…"
             autoComplete="tel"
           />
+
+          {residentWithoutEmail && (
+            <small>
+              Required because this
+              number will be used to
+              sign in when no email is
+              provided.
+            </small>
+          )}
         </label>
 
         <label>
           Password
-
           <input
             type="password"
             minLength={10}
@@ -283,14 +392,18 @@ export function RegisterPage() {
             onChange={(event) =>
               setForm({
                 ...form,
-                password: event.target.value,
+                password:
+                  event.target.value,
               })
             }
-            autoComplete="new-password"
+            autoComplete={
+              'new-password'
+            }
           />
 
           <small>
-            Use at least 10 characters and avoid common passwords.
+            Use at least 10 characters
+            and avoid common passwords.
           </small>
         </label>
 
@@ -307,7 +420,8 @@ export function RegisterPage() {
         >
           {busy
             ? 'Creating account…'
-            : form.account_type === 'volunteer'
+            : form.account_type
+                === 'volunteer'
               ? 'Register as volunteer'
               : 'Create resident account'}
         </button>
