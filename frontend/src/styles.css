@@ -9,3 +9,989 @@
 
 .tabs{display:flex;gap:6px;margin-bottom:17px;border-bottom:1px solid var(--line)}.tabs button{border:0;background:transparent;padding:12px 15px;display:flex;gap:8px;align-items:center;color:var(--muted);font-weight:700;border-bottom:3px solid transparent}.tabs button.active{color:var(--green);border-bottom-color:var(--green)}.admin-split,.fulfillment-grid{display:grid;grid-template-columns:minmax(330px,.75fr) 1.25fr;gap:17px;align-items:start}.admin-form{padding-bottom:25px}.admin-form>.form-stack{padding:0 24px}.admin-form .button{align-self:flex-start}.card-list{padding:8px 22px}.card-list>article{display:grid;grid-template-columns:42px 1fr auto;align-items:center;gap:12px;padding:15px 0;border-bottom:1px solid var(--line)}.card-list>article:last-child{border:0}.card-list .avatar,.org-icon{width:40px;height:40px;border-radius:10px;background:var(--soft);color:var(--green);display:grid;place-items:center;font-weight:800}.card-list strong,.card-list small{display:block}.card-list small{color:var(--muted);margin-top:2px}.card-list p{color:var(--muted);font-size:.82rem;margin:5px 0 0}.card-list>article>span:last-child{font-weight:700;color:#53675e}.fulfillment-grid{margin-bottom:17px}.handover-section{margin-top:28px}.handover-requests{border-top:1px solid var(--line);padding-top:15px}.handover-requests>strong{display:block;margin-bottom:9px}.handover-row{display:grid!important;grid-template-columns:20px 1fr 100px;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)}.handover-row>input:first-child{width:17px;height:17px}.handover-row span{font-weight:700}.handover-row small{display:block;color:var(--muted);font-weight:400;margin-top:3px}.total-row{display:flex;align-items:center;justify-content:space-between;padding:14px 0;border-top:2px solid var(--line)}.total-row strong{font:800 1.3rem 'Manrope'}.muted{color:var(--muted)}@media(max-width:900px){.admin-split,.fulfillment-grid{grid-template-columns:1fr}}@media(max-width:600px){.tabs{overflow:auto}.tabs button{white-space:nowrap}.handover-row{grid-template-columns:20px 1fr}.handover-row>input:last-child{grid-column:2}}
 .governance-controls{display:grid;grid-template-columns:1.25fr .75fr;gap:17px;margin-bottom:17px}.governance-controls .panel-head h2{display:flex;align-items:center;gap:8px}@media(max-width:950px){.governance-controls{grid-template-columns:1fr}}
+
+
+/* === EcoRevive public site pages === */
+
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  border-bottom: 1px solid rgba(223, 232, 227, 0.88);
+  background: rgba(245, 248, 246, 0.94);
+  backdrop-filter: blur(14px);
+}
+
+.site-nav {
+  position: relative;
+  width: min(1240px, 100%);
+  height: 82px;
+  margin: 0 auto;
+  padding: 0 28px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 30px;
+}
+
+.site-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex: 0 0 auto;
+}
+
+.site-brand-mark {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  background: var(--green);
+  color: white;
+}
+
+.site-brand-name {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  font-family: 'Manrope', sans-serif;
+  font-size: 19px;
+}
+
+.site-brand-name small {
+  color: var(--green);
+  font-size: 0.72em;
+  font-weight: 800;
+}
+
+.site-nav-links {
+  display: flex;
+  align-items: center;
+  gap: 25px;
+  color: #536861;
+  font-weight: 600;
+}
+
+.site-nav-links > a:not(.button) {
+  position: relative;
+  padding: 28px 0;
+}
+
+.site-nav-links > a:not(.button)::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 100%;
+  bottom: 19px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--green);
+  transition: 0.18s ease;
+}
+
+.site-nav-links > a:not(.button):hover,
+.site-nav-links > a:not(.button).active {
+  color: var(--green);
+}
+
+.site-nav-links > a:not(.button):hover::after,
+.site-nav-links > a:not(.button).active::after {
+  right: 0;
+}
+
+.site-menu-button {
+  display: none;
+  width: 42px;
+  height: 42px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: white;
+  color: var(--green);
+  place-items: center;
+}
+
+.public-inner-hero {
+  max-width: 1184px;
+  min-height: 560px;
+  margin: 0 auto;
+  padding: 90px 28px 80px;
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(300px, 0.72fr);
+  align-items: center;
+  gap: 75px;
+}
+
+.public-inner-hero-copy h1 {
+  max-width: 800px;
+  margin: 19px 0 24px;
+  font-size: clamp(2.8rem, 5vw, 5rem);
+}
+
+.public-inner-hero-copy > p {
+  max-width: 720px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 1.12rem;
+  line-height: 1.8;
+}
+
+.public-hero-principle {
+  position: relative;
+  overflow: hidden;
+  padding: 38px;
+  border-radius: 26px;
+  background: var(--green-dark);
+  color: white;
+  box-shadow: var(--shadow);
+}
+
+.public-hero-principle::before {
+  content: '';
+  position: absolute;
+  width: 180px;
+  height: 180px;
+  right: -70px;
+  top: -70px;
+  border-radius: 50%;
+  border: 35px solid rgba(184, 227, 108, 0.1);
+}
+
+.public-hero-principle > span {
+  display: block;
+  margin-bottom: 18px;
+  color: var(--lime);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.public-hero-principle strong {
+  position: relative;
+  display: block;
+  font: 750 1.65rem/1.35 'Manrope', sans-serif;
+}
+
+.public-hero-principle p {
+  position: relative;
+  margin: 20px 0 0;
+  color: #cfe0d9;
+  line-height: 1.7;
+}
+
+.public-section-lead {
+  color: var(--muted);
+  line-height: 1.75;
+  font-size: 1.02rem;
+}
+
+.public-inline-link {
+  margin-top: 28px;
+}
+
+.public-inline-link a,
+.public-text-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--green);
+  font-weight: 800;
+}
+
+.public-story-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+}
+
+.public-story-cards article {
+  position: relative;
+  min-height: 310px;
+  padding: 31px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: white;
+}
+
+.public-story-cards article > span:first-child {
+  position: absolute;
+  top: 22px;
+  right: 24px;
+  color: #dce8e2;
+  font: 800 1.7rem 'Manrope', sans-serif;
+}
+
+.public-story-cards svg {
+  margin: 36px 0 25px;
+  color: var(--green);
+}
+
+.public-story-cards h3 {
+  font-size: 1.25rem;
+}
+
+.public-story-cards p {
+  color: var(--muted);
+  line-height: 1.7;
+}
+
+.public-mission-points {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.public-mission-points > div {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: white;
+}
+
+.public-mission-points svg {
+  flex: 0 0 auto;
+  color: var(--green);
+}
+
+.public-mission-points span,
+.public-mission-points strong {
+  display: block;
+}
+
+.public-mission-points span {
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.public-mission-points strong {
+  margin-bottom: 3px;
+  color: var(--ink);
+}
+
+.public-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(300px, 0.7fr);
+  gap: 80px;
+  align-items: center;
+}
+
+.public-copy-block h2 {
+  margin: 14px 0 20px;
+}
+
+.public-copy-block p {
+  max-width: 700px;
+  color: var(--muted);
+  line-height: 1.8;
+}
+
+.public-copy-block .public-text-link {
+  margin-top: 10px;
+}
+
+.public-proof-card {
+  padding: 36px;
+  border-radius: 22px;
+  background: var(--green);
+  color: white;
+  box-shadow: var(--shadow);
+}
+
+.public-proof-card > svg {
+  margin-bottom: 28px;
+  color: var(--lime);
+}
+
+.public-proof-card > span {
+  display: block;
+  margin-bottom: 10px;
+  color: #cfe2d9;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.public-proof-card strong {
+  display: block;
+  font: 750 1.45rem/1.45 'Manrope', sans-serif;
+}
+
+.public-proof-card p {
+  margin: 18px 0 0;
+  color: #dceae4;
+  line-height: 1.7;
+}
+
+.public-proof-light {
+  background: white;
+  color: var(--ink);
+  border: 1px solid var(--line);
+}
+
+.public-proof-light > svg {
+  color: var(--green);
+}
+
+.public-proof-light > span,
+.public-proof-light p {
+  color: var(--muted);
+}
+
+.public-founder-section {
+  padding-top: 40px;
+}
+
+.public-founder-card {
+  padding: 44px;
+  display: grid;
+  grid-template-columns: 82px 1fr;
+  gap: 27px;
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  background: white;
+  box-shadow: 0 12px 35px rgba(16, 61, 47, 0.05);
+}
+
+.public-founder-icon {
+  width: 72px;
+  height: 72px;
+  border-radius: 20px;
+  display: grid;
+  place-items: center;
+  background: var(--soft);
+  color: var(--green);
+}
+
+.public-founder-card h2 {
+  margin: 10px 0 17px;
+}
+
+.public-founder-card p {
+  max-width: 850px;
+  color: var(--muted);
+  line-height: 1.75;
+}
+
+.public-platform-section {
+  text-align: center;
+}
+
+.public-platform-section > div:first-child {
+  max-width: 780px;
+  margin: auto;
+}
+
+.public-platform-section p {
+  color: var(--muted);
+  line-height: 1.75;
+}
+
+.public-platform-flow {
+  margin-top: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 13px;
+  flex-wrap: wrap;
+}
+
+.public-platform-flow span,
+.public-platform-flow strong {
+  padding: 15px 18px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: white;
+}
+
+.public-platform-flow strong {
+  border-color: var(--green);
+  background: var(--green);
+  color: white;
+}
+
+.process-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 14px;
+}
+
+.process-card {
+  position: relative;
+  min-height: 330px;
+  padding: 27px;
+  border: 1px solid var(--line);
+  border-radius: 19px;
+  background: white;
+}
+
+.process-number {
+  position: absolute;
+  top: 20px;
+  right: 21px;
+  color: #dce8e2;
+  font: 800 1.5rem 'Manrope', sans-serif;
+}
+
+.process-icon {
+  width: 48px;
+  height: 48px;
+  margin: 43px 0 25px;
+  border-radius: 13px;
+  display: grid;
+  place-items: center;
+  background: var(--soft);
+  color: var(--green);
+}
+
+.process-card h3 {
+  font-size: 1.08rem;
+}
+
+.process-card p {
+  color: var(--muted);
+  line-height: 1.65;
+  font-size: 0.92rem;
+}
+
+.public-checklist {
+  margin-top: 30px;
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.public-checklist > div {
+  display: grid;
+  grid-template-columns: 34px 1fr;
+  gap: 13px;
+}
+
+.public-checklist > div > span {
+  width: 31px;
+  height: 31px;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  background: var(--soft);
+  color: var(--green);
+  font-weight: 800;
+}
+
+.public-checklist p {
+  margin: 2px 0 0;
+}
+
+.public-checklist strong {
+  display: block;
+  color: var(--ink);
+}
+
+.public-after-flow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.public-after-flow > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 17px 19px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: white;
+  font-weight: 750;
+}
+
+.public-after-flow > span svg {
+  color: var(--green);
+}
+
+.public-impact-section {
+  padding: 80px max(28px, calc((100vw - 1184px) / 2)) 95px;
+  background: var(--green-dark);
+  color: white;
+}
+
+.public-impact-section .section-heading {
+  margin-bottom: 40px;
+}
+
+.public-impact-section .eyebrow {
+  color: var(--lime);
+}
+
+.public-impact-section .public-section-lead {
+  color: #cfe0d9;
+}
+
+.public-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+}
+
+.public-metric-grid article {
+  min-height: 220px;
+  padding: 27px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.055);
+}
+
+.public-metric-grid article > span {
+  display: block;
+  min-height: 44px;
+  color: #cfe0d9;
+  font-weight: 650;
+}
+
+.public-metric-grid article > strong {
+  display: inline-block;
+  margin-top: 18px;
+  font: 800 clamp(2rem, 3vw, 3rem) 'Manrope', sans-serif;
+}
+
+.public-metric-grid article > small {
+  margin-left: 7px;
+  color: var(--lime);
+  font-weight: 800;
+}
+
+.public-metric-grid article > p {
+  margin: 19px 0 0;
+  color: #bcd2c8;
+  line-height: 1.55;
+  font-size: 0.86rem;
+}
+
+.public-impact-empty {
+  padding: 35px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 16px;
+  color: #cfe0d9;
+}
+
+.public-impact-principles {
+  padding-top: 35px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.public-impact-principles > div {
+  padding: 27px;
+  border-radius: 17px;
+  background: var(--soft);
+}
+
+.public-impact-principles svg {
+  color: var(--green);
+}
+
+.public-impact-principles strong,
+.public-impact-principles span {
+  display: block;
+}
+
+.public-impact-principles strong {
+  margin: 18px 0 7px;
+  font: 750 1.15rem 'Manrope', sans-serif;
+}
+
+.public-impact-principles span {
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.public-discover {
+  padding-top: 90px;
+}
+
+.public-discover-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.public-discover-grid > a {
+  min-height: 250px;
+  padding: 29px;
+  border: 1px solid var(--line);
+  border-radius: 19px;
+  background: white;
+}
+
+.public-discover-grid > a:hover {
+  border-color: #b5cec1;
+  transform: translateY(-3px);
+  box-shadow: 0 15px 30px rgba(16, 61, 47, 0.07);
+}
+
+.public-discover-grid strong {
+  font: 750 1.3rem 'Manrope', sans-serif;
+}
+
+.public-discover-grid p {
+  margin: 17px 0 35px;
+  color: var(--muted);
+  line-height: 1.65;
+}
+
+.public-discover-grid span {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--green);
+  font-weight: 800;
+}
+
+.public-page .site-footer {
+  max-width: none;
+  padding: 45px max(28px, calc((100vw - 1184px) / 2));
+  display: grid;
+  grid-template-columns: 1.3fr 1fr auto;
+  align-items: start;
+  gap: 45px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+}
+
+.site-brand-footer {
+  margin-bottom: 15px;
+}
+
+.site-footer p {
+  max-width: 410px;
+  margin: 0;
+  line-height: 1.6;
+}
+
+.site-footer-links {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 25px;
+  font-weight: 650;
+}
+
+.site-footer-links a:hover {
+  color: var(--green);
+}
+
+.site-footer-copy {
+  white-space: nowrap;
+  font-size: 0.84rem;
+}
+
+@media (max-width: 1080px) {
+  .process-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .public-metric-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 880px) {
+  .site-menu-button {
+    display: grid;
+  }
+
+  .site-nav-links {
+    display: none;
+    position: absolute;
+    left: 20px;
+    right: 20px;
+    top: 72px;
+    padding: 18px;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    background: white;
+    box-shadow: var(--shadow);
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+  }
+
+  .site-nav-links-open {
+    display: flex;
+  }
+
+  .site-nav-links > a:not(.button) {
+    padding: 12px 10px;
+    border-radius: 8px;
+  }
+
+  .site-nav-links > a:not(.button)::after {
+    display: none;
+  }
+
+  .site-nav-links > a:not(.button).active {
+    background: var(--soft);
+  }
+
+  .public-inner-hero,
+  .public-split {
+    grid-template-columns: 1fr;
+    gap: 38px;
+  }
+
+  .public-inner-hero {
+    padding-top: 65px;
+    min-height: 0;
+  }
+
+  .public-story-cards,
+  .public-impact-principles,
+  .public-discover-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .process-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .public-page .site-footer {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .site-footer-copy {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 600px) {
+  .site-nav {
+    height: 72px;
+    padding: 0 20px;
+  }
+
+  .site-brand-name {
+    font-size: 17px;
+  }
+
+  .public-inner-hero {
+    padding: 52px 20px 65px;
+  }
+
+  .public-inner-hero-copy h1 {
+    font-size: 2.75rem;
+  }
+
+  .public-hero-principle {
+    padding: 29px;
+  }
+
+  .process-grid,
+  .public-metric-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .public-founder-card {
+    padding: 28px;
+    grid-template-columns: 1fr;
+  }
+
+  .public-platform-flow,
+  .public-after-flow {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .public-platform-flow > svg,
+  .public-after-flow > svg {
+    transform: rotate(90deg);
+    align-self: center;
+  }
+
+  .public-impact-section {
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+
+  .public-page .site-footer {
+    padding-left: 20px;
+    padding-right: 20px;
+    grid-template-columns: 1fr;
+  }
+
+  .site-footer-copy {
+    grid-column: auto;
+  }
+}
+
+
+/* === Enviroserve credibility and impact context === */
+
+.public-enviroserve-section {
+  display: grid;
+  grid-template-columns:
+    minmax(0, 0.95fr)
+    minmax(440px, 1.05fr);
+  align-items: start;
+  gap: 65px;
+}
+
+.public-enviroserve-credentials {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.public-enviroserve-credentials article {
+  min-height: 245px;
+  padding: 25px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: white;
+}
+
+.public-enviroserve-credentials svg {
+  margin-bottom: 23px;
+  color: var(--green);
+}
+
+.public-enviroserve-credentials article > span {
+  display: block;
+  margin-bottom: 10px;
+  color: var(--green);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.71rem;
+  font-weight: 800;
+}
+
+.public-enviroserve-credentials strong {
+  display: block;
+  font:
+    750 1.08rem/1.45
+    'Manrope',
+    sans-serif;
+}
+
+.public-enviroserve-credentials p {
+  margin: 13px 0 0;
+  color: var(--muted);
+  line-height: 1.6;
+  font-size: 0.88rem;
+}
+
+.public-independence-note {
+  margin: 25px 0;
+  padding: 17px 19px;
+  border-left: 3px solid var(--green);
+  border-radius: 0 11px 11px 0;
+  background: var(--soft);
+  color: var(--muted);
+  line-height: 1.65;
+  font-size: 0.9rem;
+}
+
+.public-source-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.public-source-links a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--green);
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+.public-source-links a:hover {
+  text-decoration: underline;
+}
+
+.public-metric-grid .impact-context-card {
+  position: relative;
+  border-color: rgba(
+    184,
+    227,
+    108,
+    0.28
+  );
+  background: rgba(
+    184,
+    227,
+    108,
+    0.075
+  );
+}
+
+.impact-context-card em {
+  position: absolute;
+  right: 18px;
+  bottom: 16px;
+  color: var(--lime);
+  font-size: 0.62rem;
+  font-style: normal;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.public-impact-methodology {
+  margin-top: 28px;
+  padding: 22px 24px;
+  border: 1px solid rgba(
+    255,
+    255,
+    255,
+    0.13
+  );
+  border-radius: 14px;
+  background: rgba(
+    255,
+    255,
+    255,
+    0.04
+  );
+}
+
+.public-impact-methodology strong {
+  display: block;
+  color: white;
+  font:
+    750 0.94rem
+    'Manrope',
+    sans-serif;
+}
+
+.public-impact-methodology p {
+  max-width: 900px;
+  margin: 8px 0 15px;
+  color: #bcd2c8;
+  line-height: 1.6;
+  font-size: 0.82rem;
+}
+
+.public-impact-source-links a {
+  color: var(--lime);
+}
+
+@media (max-width: 980px) {
+  .public-enviroserve-section {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 600px) {
+  .public-enviroserve-credentials {
+    grid-template-columns: 1fr;
+  }
+
+  .public-source-links {
+    flex-direction: column;
+    gap: 10px;
+  }
+}

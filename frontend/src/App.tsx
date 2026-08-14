@@ -6,11 +6,14 @@ import { AccountPage } from './pages/AccountPage'
 import { AdministrationPage } from './pages/AdministrationPage'
 import { AssignmentsPage } from './pages/AssignmentsPage'
 import { LoginPage, RegisterPage } from './pages/AuthPages'
+import { AboutPage } from './pages/AboutPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { FulfillmentPage } from './pages/FulfillmentPage'
 import { GovernancePage } from './pages/GovernancePage'
 import { HomePage } from './pages/HomePage'
+import { HowItWorksPage } from './pages/HowItWorksPage'
 import { ImpactAdminPage } from './pages/ImpactAdminPage'
+import { ImpactPage } from './pages/ImpactPage'
 import { NewRequestPage } from './pages/NewRequestPage'
 import { OperationsPage } from './pages/OperationsPage'
 import { RequestDetailPage } from './pages/RequestDetailPage'
@@ -36,6 +39,21 @@ export default function App() {
       <Route
         path="/"
         element={<HomePage />}
+      />
+
+      <Route
+        path="/about"
+        element={<AboutPage />}
+      />
+
+      <Route
+        path="/how-it-works"
+        element={<HowItWorksPage />}
+      />
+
+      <Route
+        path="/impact"
+        element={<ImpactPage />}
       />
 
       <Route
